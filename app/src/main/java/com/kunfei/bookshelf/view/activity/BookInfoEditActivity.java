@@ -11,6 +11,10 @@ import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
 
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.ActionBar;
+import androidx.appcompat.widget.Toolbar;
+
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.bumptech.glide.request.RequestOptions;
@@ -31,9 +35,6 @@ import com.kunfei.bookshelf.widget.modialog.MoDialogHUD;
 
 import java.io.File;
 
-import androidx.annotation.NonNull;
-import androidx.appcompat.app.ActionBar;
-import androidx.appcompat.widget.Toolbar;
 import butterknife.BindView;
 import butterknife.ButterKnife;
 
@@ -75,6 +76,7 @@ public class BookInfoEditActivity extends MBaseActivity {
     public static void startThis(Context context, String noteUrl) {
         Intent intent = new Intent(context, BookInfoEditActivity.class);
         intent.putExtra("noteUrl", noteUrl);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         context.startActivity(intent);
     }
 
@@ -95,7 +97,7 @@ public class BookInfoEditActivity extends MBaseActivity {
     }
 
     @Override
-    protected void onSaveInstanceState(Bundle outState) {
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
         super.onSaveInstanceState(outState);
         outState.putString("noteUrl", noteUrl);
     }
@@ -172,11 +174,11 @@ public class BookInfoEditActivity extends MBaseActivity {
 
             @Override
             public void onUserHasAlreadyTurnedDown(String... permission) {
-                BookInfoEditActivity.this.toast("获取背景图片需存储权限");
+                BookInfoEditActivity.this.toast(R.string.bg_image_per);
             }
 
             @Override
-            public void onUserHasAlreadyTurnedDownAndDontAsk(String... permission) {
+            public void onAlreadyTurnedDownAndNoAsk(String... permission) {
                 PermissionUtils.requestMorePermissions(BookInfoEditActivity.this, permission, MApplication.RESULT__PERMS);
             }
         });
@@ -225,7 +227,7 @@ public class BookInfoEditActivity extends MBaseActivity {
                 saveInfo();
                 break;
             case android.R.id.home:
-                SoftInputUtil.hideIMM(this, getCurrentFocus());
+                SoftInputUtil.hideIMM(getCurrentFocus());
                 finish();
                 break;
         }
@@ -233,14 +235,16 @@ public class BookInfoEditActivity extends MBaseActivity {
     }
 
     private void saveInfo() {
-        book.getBookInfoBean().setName(tieBookName.getText().toString());
-        book.getBookInfoBean().setAuthor(tieBookAuthor.getText().toString());
-        book.getBookInfoBean().setIntroduce(tieBookJj.getText().toString());
-        book.setCustomCoverPath(tieCoverUrl.getText().toString());
-        initCover();
-        BookshelfHelp.saveBookToShelf(book);
-        RxBus.get().post(RxBusTag.HAD_ADD_BOOK, book);
-        SoftInputUtil.hideIMM(this, getCurrentFocus());
+        if (book != null) {
+            book.getBookInfoBean().setName(tieBookName.getText().toString());
+            book.getBookInfoBean().setAuthor(tieBookAuthor.getText().toString());
+            book.getBookInfoBean().setIntroduce(tieBookJj.getText().toString());
+            book.setCustomCoverPath(tieCoverUrl.getText().toString());
+            initCover();
+            BookshelfHelp.saveBookToShelf(book);
+            RxBus.get().post(RxBusTag.HAD_ADD_BOOK, book);
+            SoftInputUtil.hideIMM(getCurrentFocus());
+        }
         finish();
     }
 
@@ -268,12 +272,12 @@ public class BookInfoEditActivity extends MBaseActivity {
 
             @Override
             public void onUserHasAlreadyTurnedDown(String... permission) {
-                BookInfoEditActivity.this.toast("获取背景图片需存储权限");
+                BookInfoEditActivity.this.toast(R.string.bg_image_per);
             }
 
             @Override
-            public void onUserHasAlreadyTurnedDownAndDontAsk(String... permission) {
-                BookInfoEditActivity.this.toast("获取背景图片需存储权限");
+            public void onAlreadyTurnedDownAndNoAsk(String... permission) {
+                BookInfoEditActivity.this.toast(R.string.bg_image_per);
                 PermissionUtils.toAppSetting(BookInfoEditActivity.this);
             }
         });

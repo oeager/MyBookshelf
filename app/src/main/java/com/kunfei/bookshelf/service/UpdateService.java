@@ -32,11 +32,8 @@ public class UpdateService extends Service {
     public static boolean isRunning = false;
     private static final String startDownload = "startDownload";
     private static final String stopDownload = "stopDownload";
-    private String apkFilePath;
     private UpdateInfoBean updateInfo;
-    private boolean interceptFlag = false;
     private Disposable disposableDown;
-    private int count = 0;
 
     public static void startThis(Context context, UpdateInfoBean updateInfoBean) {
         Intent intent = new Intent(context, UpdateService.class);
@@ -94,7 +91,6 @@ public class UpdateService extends Service {
     }
 
     private void stopDownload() {
-        interceptFlag = true;
         stopSelf();
     }
 
@@ -114,8 +110,8 @@ public class UpdateService extends Service {
                 .setOngoing(true)
                 .setContentTitle(getString(R.string.download_update))
                 .setContentText(String.format(getString(R.string.progress_show), state, 100))
-                .setContentIntent(getActivityPendingIntent(""));
-        builder.addAction(R.drawable.ic_stop_black_24dp, getString(R.string.cancel), getThisServicePendingIntent(stopDownload));
+                .setContentIntent(getActivityPendingIntent());
+        builder.addAction(R.drawable.ic_stop_black_24dp, getString(R.string.cancel), getThisServicePendingIntent());
         builder.setProgress(100, state, false);
         builder.setVisibility(NotificationCompat.VISIBILITY_PUBLIC);
         Notification notification = builder.build();
@@ -123,16 +119,16 @@ public class UpdateService extends Service {
         startForeground(notificationId, notification);
     }
 
-    private PendingIntent getActivityPendingIntent(String actionStr) {
+    private PendingIntent getActivityPendingIntent() {
         Intent intent = new Intent(this, UpdateActivity.class);
-        intent.setAction(actionStr);
+        intent.setAction("startActivity");
         intent.putExtra("updateInfo", updateInfo);
         return PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
     }
 
-    private PendingIntent getThisServicePendingIntent(String actionStr) {
+    private PendingIntent getThisServicePendingIntent() {
         Intent intent = new Intent(this, this.getClass());
-        intent.setAction(actionStr);
+        intent.setAction(UpdateService.stopDownload);
         return PendingIntent.getService(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
     }
 
@@ -140,7 +136,7 @@ public class UpdateService extends Service {
         if (disposableDown != null) {
             return;
         }
-        apkFilePath = UpdateManager.getSavePath(apkUrl.substring(apkUrl.lastIndexOf("/")));
+        String apkFilePath = UpdateManager.getSavePath(apkUrl.substring(apkUrl.lastIndexOf("/")));
         File apkFile = new File(apkFilePath);
         DownloadUtils downloadUtils = new DownloadUtils("https://github.com", new JsDownloadListener() {
             @Override

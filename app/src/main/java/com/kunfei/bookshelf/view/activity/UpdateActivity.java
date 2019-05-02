@@ -89,7 +89,7 @@ public class UpdateActivity extends MBaseActivity {
     protected void initData() {
         updateInfo = getIntent().getParcelableExtra("updateInfo");
         if (updateInfo != null) {
-            Markwon.setMarkdown(tvMarkdown, updateInfo.getDetail());
+            Markwon.create(this).setMarkdown(tvMarkdown, updateInfo.getDetail());
         }
     }
 
@@ -106,7 +106,7 @@ public class UpdateActivity extends MBaseActivity {
                 File apkFile = new File(UpdateManager.getSavePath(fileName));
                 UpdateManager.getInstance(this).installApk(apkFile);
             } else {
-                Toast.makeText(this, "没有获取到更新地址", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, R.string.non_update_url, Toast.LENGTH_SHORT).show();
             }
         });
     }

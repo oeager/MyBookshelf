@@ -13,7 +13,7 @@
     <color name="transparent30">#30ffffff</color>
 
     <color name="bg_divider_line">#363636</color>
-    <color name="btn_bg_press">#222222</color>
+    <color name="btn_bg_press">#3C3C3C</color>
     <color name="btn_bg_press_2">#363636</color>
     <color name="btn_bg_press_tp">#88111111</color>
     <color name="darker_gray">#66666666</color>
@@ -26,8 +26,6 @@
     <color name="tv_text_summary">#b3ffffff</color>
     <color name="menu_color_default">#b7b7b7</color>
 
-    <color name="tv_chapter_color_selected">#b7b7b7</color>
-    <color name="tv_chapter_color_normal">#969696</color>
 
     <color name="tv_text_button_nor">#303030</color>
 

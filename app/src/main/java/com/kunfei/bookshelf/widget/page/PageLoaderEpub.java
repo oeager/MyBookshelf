@@ -5,13 +5,13 @@ import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.text.TextUtils;
 
-import com.kunfei.basemvplib.untils.EncodingDetect;
-import com.kunfei.bookshelf.base.observer.SimpleObserver;
+import com.kunfei.bookshelf.base.observer.MyObserver;
 import com.kunfei.bookshelf.bean.BookShelfBean;
 import com.kunfei.bookshelf.bean.ChapterListBean;
 import com.kunfei.bookshelf.help.BookshelfHelp;
-import com.kunfei.bookshelf.help.FormatWebText;
+import com.kunfei.bookshelf.utils.EncodingDetect;
 import com.kunfei.bookshelf.utils.RxUtils;
+import com.kunfei.bookshelf.utils.StringUtils;
 
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -67,7 +67,6 @@ public class PageLoaderEpub extends PageLoader {
 
             return epubReader.readEpubLazy(file.getAbsolutePath(), "utf-8", Arrays.asList(lazyTypes));
         } catch (Exception e) {
-            e.printStackTrace();
             return null;
         }
     }
@@ -99,32 +98,13 @@ public class PageLoaderEpub extends PageLoader {
         canvas.drawBitmap(cover, left, top, mTextPaint);
     }
 
-    private String getCharset(Book book) {
-        try {
-            Resource resource = book.getCoverPage();
-            Document doc = Jsoup.parse(new String(resource.getData(), "utf-8"));
-            Elements metaTags = doc.getElementsByTag("meta");
-            for (Element metaTag : metaTags) {
-                String charsetName = metaTag.attr("charset");
-                if (!charsetName.isEmpty()) {
-                    if (!TextUtils.isEmpty(charsetName)) {
-                        return charsetName;
-                    }
-                }
-            }
-            return EncodingDetect.getJavaEncode(resource.getData());
-        } catch (Exception e) {
-            return "utf-8";
-        }
-    }
-
     private List<ChapterListBean> loadChapters() {
         BookShelfBean bookShelf = bookShelfBean;
         Metadata metadata = book.getMetadata();
         bookShelf.getBookInfoBean().setName(metadata.getFirstTitle());
         if (metadata.getAuthors().size() > 0) {
             String author = metadata.getAuthors().get(0).toString().replaceAll("^, |, $", "");
-            bookShelf.getBookInfoBean().setAuthor(FormatWebText.getAuthor(author));
+            bookShelf.getBookInfoBean().setAuthor(author);
         }
         if (metadata.getDescriptions().size() > 0) {
             bookShelf.getBookInfoBean().setIntroduce(Jsoup.parse(metadata.getDescriptions().get(0)).text());
@@ -194,7 +174,7 @@ public class PageLoaderEpub extends PageLoader {
             List<TextNode> contentEs = element.textNodes();
             for (int i = 0; i < contentEs.size(); i++) {
                 String text = contentEs.get(i).text().trim();
-                text = FormatWebText.getContent(text);
+                text = StringUtils.formatHtml(text);
                 if (elements.size() > 1) {
                     if (text.length() > 0) {
                         if (content.length() > 0) {
@@ -253,7 +233,7 @@ public class PageLoaderEpub extends PageLoader {
                 return;
             }
             if (TextUtils.isEmpty(bookShelf.getBookInfoBean().getCharset())) {
-                bookShelf.getBookInfoBean().setCharset(getCharset(book));
+                bookShelf.getBookInfoBean().setCharset(EncodingDetect.getEncodeInHtml(book.getCoverPage().getData()));
             }
             mCharset = Charset.forName(bookShelf.getBookInfoBean().getCharset());
 
@@ -262,7 +242,7 @@ public class PageLoaderEpub extends PageLoader {
         }).subscribeOn(Schedulers.single())
                 .flatMap(this::checkChapterList)
                 .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(new SimpleObserver<BookShelfBean>() {
+                .subscribe(new MyObserver<BookShelfBean>() {
                     @Override
                     public void onSubscribe(Disposable d) {
                         compositeDisposable.add(d);
@@ -301,7 +281,7 @@ public class PageLoaderEpub extends PageLoader {
             bookShelf.setChapterList(null);
             BookshelfHelp.delChapterList(bookShelf.getNoteUrl());
             if (TextUtils.isEmpty(bookShelf.getBookInfoBean().getCharset())) {
-                bookShelf.getBookInfoBean().setCharset(getCharset(book));
+                bookShelf.getBookInfoBean().setCharset(EncodingDetect.getEncodeInHtml(book.getCoverPage().getData()));
             }
             mCharset = Charset.forName(bookShelf.getBookInfoBean().getCharset());
             e.onNext(bookShelf);

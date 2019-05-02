@@ -5,15 +5,18 @@ import android.os.Handler;
 import android.os.Looper;
 import android.widget.Toast;
 
+import androidx.documentfile.provider.DocumentFile;
+
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.kunfei.bookshelf.BuildConfig;
+import com.kunfei.bookshelf.DbHelper;
 import com.kunfei.bookshelf.MApplication;
 import com.kunfei.bookshelf.R;
 import com.kunfei.bookshelf.bean.BookShelfBean;
 import com.kunfei.bookshelf.bean.BookSourceBean;
 import com.kunfei.bookshelf.bean.ReplaceRuleBean;
 import com.kunfei.bookshelf.bean.SearchHistoryBean;
-import com.kunfei.bookshelf.dao.DbHelper;
 import com.kunfei.bookshelf.model.BookSourceManager;
 import com.kunfei.bookshelf.model.ReplaceRuleManager;
 import com.kunfei.bookshelf.utils.FileUtils;
@@ -32,7 +35,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
-import androidx.documentfile.provider.DocumentFile;
 import io.reactivex.Single;
 import io.reactivex.SingleObserver;
 import io.reactivex.SingleOnSubscribe;
@@ -56,10 +58,11 @@ public class DataBackup {
         Single.create((SingleOnSubscribe<Boolean>) e -> {
             long currentTime = System.currentTimeMillis();
             List<String> per = PermissionUtils.checkMorePermissions(MApplication.getInstance(), MApplication.PerList);
-            if (per.isEmpty()) {
+            if (per.isEmpty() && !BuildConfig.DEBUG) {
                 File file = new File(FileUtils.getSdCardPath() + File.separator + "YueDu" + File.separator + "autoSave" + File.separator + "myBookShelf.json");
                 if (file.exists()) {
                     if (currentTime - file.lastModified() < TimeUnit.DAYS.toMillis(1)) {
+                        e.onSuccess(false);
                         return;
                     }
                 }
@@ -75,6 +78,7 @@ public class DataBackup {
                 upload(dirPath);
                 e.onSuccess(true);
             }
+            e.onSuccess(false);
         }).compose(RxUtils::toSimpleSingle)
                 .subscribe();
     }
@@ -194,7 +198,7 @@ public class DataBackup {
     }
 
     private void backupReplaceRule(String file) {
-        List<ReplaceRuleBean> replaceRuleBeans = ReplaceRuleManager.getAll();
+        List<ReplaceRuleBean> replaceRuleBeans = ReplaceRuleManager.getAll().blockingGet();
         if (replaceRuleBeans != null && replaceRuleBeans.size() > 0) {
             Gson gson = new GsonBuilder()
                     .disableHtmlEscaping()
@@ -209,7 +213,7 @@ public class DataBackup {
     }
 
     private void backupConfig(String file) {
-        SharedPreferences pref = MApplication.getInstance().getConfigPreferences();
+        SharedPreferences pref = MApplication.getConfigPreferences();
         try (FileOutputStream out = new FileOutputStream(file + "/config.xml")) {
             XmlUtils.writeMapXml(pref.getAll(), out);
         } catch (Exception e) {

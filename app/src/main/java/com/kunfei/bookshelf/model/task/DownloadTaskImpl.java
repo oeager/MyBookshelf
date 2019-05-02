@@ -3,7 +3,7 @@ package com.kunfei.bookshelf.model.task;
 import android.text.TextUtils;
 
 import com.hwangjr.rxbus.RxBus;
-import com.kunfei.bookshelf.base.observer.SimpleObserver;
+import com.kunfei.bookshelf.base.observer.MyObserver;
 import com.kunfei.bookshelf.bean.BookContentBean;
 import com.kunfei.bookshelf.bean.BookShelfBean;
 import com.kunfei.bookshelf.bean.DownloadBookBean;
@@ -15,7 +15,6 @@ import com.kunfei.bookshelf.model.impl.IDownloadTask;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import io.reactivex.Observable;
 import io.reactivex.ObservableOnSubscribe;
@@ -68,7 +67,7 @@ public abstract class DownloadTaskImpl implements IDownloadTask {
             emitter.onNext(downloadBook);
         }).subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(new SimpleObserver<DownloadBookBean>() {
+                .subscribe(new MyObserver<DownloadBookBean>() {
                     @Override
                     public void onSubscribe(Disposable d) {
                         disposables.add(d);
@@ -149,7 +148,7 @@ public abstract class DownloadTaskImpl implements IDownloadTask {
 
         if (!isLocked) {
             getDownloadingChapter()
-                    .subscribe(new SimpleObserver<DownloadChapterBean>() {
+                    .subscribe(new MyObserver<DownloadChapterBean>() {
                         @Override
                         public void onNext(DownloadChapterBean chapterBean) {
                             if (chapterBean != null) {
@@ -167,6 +166,9 @@ public abstract class DownloadTaskImpl implements IDownloadTask {
         }
     }
 
+    /**
+     * @return 章节下载信息
+     */
     private Observable<DownloadChapterBean> getDownloadingChapter() {
         return Observable.create(emitter -> {
             DownloadChapterBean next = null;
@@ -186,6 +188,9 @@ public abstract class DownloadTaskImpl implements IDownloadTask {
         });
     }
 
+    /**
+     * 下载
+     */
     private synchronized void downloading(DownloadChapterBean chapter, Scheduler scheduler) {
         whenProgress(chapter);
         Observable.create((ObservableOnSubscribe<DownloadChapterBean>) e -> {
@@ -200,10 +205,9 @@ public abstract class DownloadTaskImpl implements IDownloadTask {
             e.onComplete();
         })
                 .flatMap(result -> WebBookModel.getInstance().getBookContent(chapter, chapter.getBookName()))
-                .timeout(30, TimeUnit.SECONDS)
                 .subscribeOn(scheduler)
                 .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(new SimpleObserver<BookContentBean>() {
+                .subscribe(new MyObserver<BookContentBean>() {
 
                     @Override
                     public void onSubscribe(Disposable d) {
@@ -229,6 +233,9 @@ public abstract class DownloadTaskImpl implements IDownloadTask {
                 });
     }
 
+    /**
+     * 从下载列表移除
+     */
     private synchronized void removeFromDownloadList(DownloadChapterBean chapterBean) {
         downloadChapters.remove(chapterBean);
     }

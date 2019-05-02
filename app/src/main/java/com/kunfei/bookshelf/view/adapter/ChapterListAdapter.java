@@ -8,7 +8,7 @@ import android.widget.TextView;
 
 import com.kunfei.bookshelf.MApplication;
 import com.kunfei.bookshelf.R;
-import com.kunfei.bookshelf.base.observer.SimpleObserver;
+import com.kunfei.bookshelf.base.observer.MyObserver;
 import com.kunfei.bookshelf.bean.BookShelfBean;
 import com.kunfei.bookshelf.bean.ChapterListBean;
 import com.kunfei.bookshelf.utils.theme.ThemeStore;
@@ -37,7 +37,6 @@ public class ChapterListAdapter extends RecyclerView.Adapter<ChapterListAdapter.
     public ChapterListAdapter(BookShelfBean bookShelfBean, @NonNull OnItemClickListener itemClickListener) {
         this.bookShelfBean = bookShelfBean;
         this.itemClickListener = itemClickListener;
-        normalColor = MApplication.getAppResources().getColor(R.color.selector_chapter_item);
         highlightColor = ThemeStore.accentColor(MApplication.getInstance());
     }
 
@@ -63,7 +62,7 @@ public class ChapterListAdapter extends RecyclerView.Adapter<ChapterListAdapter.
                 emitter.onComplete();
             }).subscribeOn(Schedulers.io())
                     .observeOn(AndroidSchedulers.mainThread())
-                    .subscribe(new SimpleObserver<Boolean>() {
+                    .subscribe(new MyObserver<Boolean>() {
                         @Override
                         public void onNext(Boolean aBoolean) {
                             isSearch = true;
@@ -81,6 +80,7 @@ public class ChapterListAdapter extends RecyclerView.Adapter<ChapterListAdapter.
     @NonNull
     @Override
     public ThisViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        normalColor = ThemeStore.textColorSecondary(parent.getContext());
         return new ThisViewHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.item_chapter_list, parent, false));
     }
 

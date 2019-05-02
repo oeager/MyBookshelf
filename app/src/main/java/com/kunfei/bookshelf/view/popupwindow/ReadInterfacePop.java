@@ -72,6 +72,18 @@ public class ReadInterfacePop extends FrameLayout {
     NumberButton nbLineSize;
     @BindView(R.id.nbParagraphSize)
     NumberButton nbParagraphSize;
+    @BindView(R.id.fl_indent)
+    TextView tvIndent;
+    @BindView(R.id.nbTipPaddingTop)
+    NumberButton nbTipPaddingTop;
+    @BindView(R.id.nbTipPaddingBottom)
+    NumberButton nbTipPaddingBottom;
+    @BindView(R.id.nbTipPaddingLeft)
+    NumberButton nbTipPaddingLeft;
+    @BindView(R.id.nbTipPaddingRight)
+    NumberButton nbTipPaddingRight;
+    @BindView(R.id.nbLetterSpacing)
+    NumberButton nbLetterSpacing;
 
     private ReadBookActivity activity;
     private ReadBookControl readBookControl = ReadBookControl.getInstance();
@@ -93,8 +105,7 @@ public class ReadInterfacePop extends FrameLayout {
     }
 
     private void init(Context context) {
-        View view = LayoutInflater.from(context).inflate(R.layout.pop_read_interface, null);
-        addView(view);
+        View view = LayoutInflater.from(context).inflate(R.layout.pop_read_interface, this);
         ButterKnife.bind(this, view);
         view.setOnClickListener(null);
     }
@@ -121,10 +132,22 @@ public class ReadInterfacePop extends FrameLayout {
                     changeProListener.upTextSize();
                 });
 
+        nbLetterSpacing.setTitle(activity.getContext().getString(R.string.text_letter_spacing))
+                .setNumberType(NumberButton.FLOAT)
+                .setMinNumber(-0.5f)
+                .setMaxNumber(0.5f)
+                .setStepNumber(0.01f)
+                .setFormat("0.00")
+                .setNumber(readBookControl.getTextLetterSpacing())
+                .setOnChangedListener(number -> {
+                    readBookControl.setTextLetterSpacing(number);
+                    changeProListener.upTextSize();
+                });
+
         nbLineSize.setTitle(activity.getString(R.string.line_size))
                 .setNumberType(NumberButton.FLOAT)
                 .setMinNumber(0.5f)
-                .setMaxNumber(2f)
+                .setMaxNumber(3f)
                 .setStepNumber(0.1f)
                 .setFormat("0.0")
                 .setNumber(readBookControl.getLineMultiplier())
@@ -136,7 +159,7 @@ public class ReadInterfacePop extends FrameLayout {
         nbParagraphSize.setTitle(activity.getString(R.string.paragraph_size))
                 .setNumberType(NumberButton.FLOAT)
                 .setMinNumber(1f)
-                .setMaxNumber(3f)
+                .setMaxNumber(5f)
                 .setStepNumber(0.1f)
                 .setFormat("0.0")
                 .setNumber(readBookControl.getParagraphSize())
@@ -147,7 +170,7 @@ public class ReadInterfacePop extends FrameLayout {
 
         nbPaddingTop.setTitle(activity.getString(R.string.padding_top))
                 .setMinNumber(0)
-                .setMaxNumber(50)
+                .setMaxNumber(100)
                 .setStepNumber(1)
                 .setNumber(readBookControl.getPaddingTop())
                 .setOnChangedListener(number -> {
@@ -157,7 +180,7 @@ public class ReadInterfacePop extends FrameLayout {
 
         nbPaddingBottom.setTitle(activity.getString(R.string.padding_bottom))
                 .setMinNumber(0)
-                .setMaxNumber(50)
+                .setMaxNumber(100)
                 .setStepNumber(1)
                 .setNumber(readBookControl.getPaddingBottom())
                 .setOnChangedListener(number -> {
@@ -184,9 +207,66 @@ public class ReadInterfacePop extends FrameLayout {
                     readBookControl.setPaddingRight((int) number);
                     changeProListener.upMargin();
                 });
+        nbTipPaddingTop.setTitle(activity.getString(R.string.padding_top))
+                .setMinNumber(0)
+                .setMaxNumber(100)
+                .setStepNumber(1)
+                .setNumber(readBookControl.getTipPaddingTop())
+                .setOnChangedListener(number -> {
+                    readBookControl.setTipPaddingTop((int) number);
+                    changeProListener.upMargin();
+                });
+
+        nbTipPaddingBottom.setTitle(activity.getString(R.string.padding_bottom))
+                .setMinNumber(0)
+                .setMaxNumber(100)
+                .setStepNumber(1)
+                .setNumber(readBookControl.getTipPaddingBottom())
+                .setOnChangedListener(number -> {
+                    readBookControl.setTipPaddingBottom((int) number);
+                    changeProListener.upMargin();
+                });
+
+        nbTipPaddingLeft.setTitle(activity.getString(R.string.padding_left))
+                .setMinNumber(0)
+                .setMaxNumber(50)
+                .setStepNumber(1)
+                .setNumber(readBookControl.getTipPaddingLeft())
+                .setOnChangedListener(number -> {
+                    readBookControl.setTipPaddingLeft((int) number);
+                    changeProListener.upMargin();
+                });
+
+        nbTipPaddingRight.setTitle(activity.getString(R.string.padding_right))
+                .setMinNumber(0)
+                .setMaxNumber(50)
+                .setStepNumber(1)
+                .setNumber(readBookControl.getTipPaddingRight())
+                .setOnChangedListener(number -> {
+                    readBookControl.setTipPaddingRight((int) number);
+                    changeProListener.upMargin();
+                });
     }
 
+    /**
+     * 控件事件
+     */
     private void bindEvent() {
+        //缩进
+        tvIndent.setOnClickListener(v -> {
+            AlertDialog dialog = new AlertDialog.Builder(activity, R.style.alertDialogTheme)
+                    .setTitle(activity.getString(R.string.indent))
+                    .setSingleChoiceItems(activity.getResources().getStringArray(R.array.indent),
+                            readBookControl.getIndent(),
+                            (dialogInterface, i) -> {
+                                readBookControl.setIndent(i);
+                                changeProListener.refresh();
+                                dialogInterface.dismiss();
+                            })
+                    .create();
+            dialog.show();
+            ATH.setAlertDialogTint(dialog);
+        });
         //翻页模式
         tvPageMode.setOnClickListener(view -> {
             AlertDialog dialog = new AlertDialog.Builder(activity, R.style.alertDialogTheme)

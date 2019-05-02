@@ -2,11 +2,11 @@ package com.kunfei.bookshelf.model.analyzeRule;
 
 import android.content.SharedPreferences;
 
+import com.kunfei.bookshelf.DbHelper;
 import com.kunfei.bookshelf.MApplication;
 import com.kunfei.bookshelf.R;
 import com.kunfei.bookshelf.bean.BookSourceBean;
 import com.kunfei.bookshelf.bean.CookieBean;
-import com.kunfei.bookshelf.dao.DbHelper;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -19,7 +19,7 @@ import static android.text.TextUtils.isEmpty;
  */
 
 public class AnalyzeHeaders {
-    private static SharedPreferences preferences = MApplication.getInstance().getConfigPreferences();
+    private static SharedPreferences preferences = MApplication.getConfigPreferences();
 
     public static Map<String, String> getMap(BookSourceBean bookSourceBean) {
         Map<String, String> headerMap = new HashMap<>();

@@ -216,7 +216,7 @@ public class BookShelfBean implements Parcelable, Cloneable, BaseBookBean {
     }
 
     public List<ChapterListBean> getChapterList() {
-        return getBookInfoBean().getChapterList();
+        return bookInfoBean.getChapterList();
     }
 
     public int getDurChapterPage() {
@@ -227,6 +227,7 @@ public class BookShelfBean implements Parcelable, Cloneable, BaseBookBean {
         return finalDate;
     }
 
+    @Override
     public String getTag() {
         return tag;
     }

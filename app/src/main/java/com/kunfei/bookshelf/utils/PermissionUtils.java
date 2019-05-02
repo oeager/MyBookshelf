@@ -6,11 +6,11 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * <pre>
@@ -21,7 +21,7 @@ import androidx.core.content.ContextCompat;
  *     version: 1.0
  * </pre>
  */
-
+@SuppressWarnings({"unused", "WeakerAccess"})
 public class PermissionUtils {
 
     /**
@@ -109,7 +109,7 @@ public class PermissionUtils {
             if (judgePermission(context, permission))  // 用户之前已拒绝过权限申请
                 callBack.onUserHasAlreadyTurnedDown(permission);
             else                                       // 用户之前已拒绝并勾选了不在询问、用户第一次申请权限。
-                callBack.onUserHasAlreadyTurnedDownAndDontAsk(permission);
+                callBack.onAlreadyTurnedDownAndNoAsk(permission);
         }
     }
 
@@ -130,9 +130,9 @@ public class PermissionUtils {
                     break;
                 }
             }
-            String[] unauthorizedMorePermissions = (String[]) permissionList.toArray(new String[permissionList.size()]);
+            String[] unauthorizedMorePermissions = permissionList.toArray(new String[0]);
             if (isFirst)// 用户之前已拒绝过权限申请
-                callBack.onUserHasAlreadyTurnedDownAndDontAsk(unauthorizedMorePermissions);
+                callBack.onAlreadyTurnedDownAndNoAsk(unauthorizedMorePermissions);
             else       // 用户之前已拒绝并勾选了不在询问、用户第一次申请权限。
                 callBack.onUserHasAlreadyTurnedDown(unauthorizedMorePermissions);
 
@@ -180,7 +180,7 @@ public class PermissionUtils {
             if (PermissionUtils.judgePermission(context, permission)) {
                 callback.onUserHasAlreadyTurnedDown(permission);
             } else {
-                callback.onUserHasAlreadyTurnedDownAndDontAsk(permission);
+                callback.onAlreadyTurnedDownAndNoAsk(permission);
             }
         }
     }
@@ -202,7 +202,7 @@ public class PermissionUtils {
             }
             //　已禁止再次询问权限
             if (isBannedPermission)
-                callback.onUserHasAlreadyTurnedDownAndDontAsk(permissions);
+                callback.onAlreadyTurnedDownAndNoAsk(permissions);
             else // 拒绝权限
                 callback.onUserHasAlreadyTurnedDown(permissions);
         }
@@ -248,7 +248,7 @@ public class PermissionUtils {
          *
          * @param permission:被拒绝的权限
          */
-        void onUserHasAlreadyTurnedDownAndDontAsk(String... permission);
+        void onAlreadyTurnedDownAndNoAsk(String... permission);
     }
 
 

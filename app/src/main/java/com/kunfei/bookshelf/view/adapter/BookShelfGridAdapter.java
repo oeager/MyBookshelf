@@ -11,15 +11,18 @@ import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.TextView;
 
+import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.RecyclerView;
+
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.bumptech.glide.request.RequestOptions;
+import com.kunfei.bookshelf.DbHelper;
 import com.kunfei.bookshelf.R;
 import com.kunfei.bookshelf.bean.BookInfoBean;
 import com.kunfei.bookshelf.bean.BookShelfBean;
-import com.kunfei.bookshelf.dao.DbHelper;
 import com.kunfei.bookshelf.help.BookshelfHelp;
-import com.kunfei.bookshelf.help.ItemTouchHelpCallback;
+import com.kunfei.bookshelf.help.ItemTouchCallback;
 import com.kunfei.bookshelf.utils.theme.ThemeStore;
 import com.kunfei.bookshelf.view.adapter.base.OnItemClickListenerTwo;
 import com.kunfei.bookshelf.widget.BadgeView;
@@ -27,12 +30,8 @@ import com.victor.loading.rotate.RotateLoading;
 
 import java.io.File;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-
-import androidx.annotation.NonNull;
-import androidx.recyclerview.widget.RecyclerView;
 
 public class BookShelfGridAdapter extends RecyclerView.Adapter<BookShelfGridAdapter.MyViewHolder> implements BookShelfAdapter {
 
@@ -41,7 +40,7 @@ public class BookShelfGridAdapter extends RecyclerView.Adapter<BookShelfGridAdap
     private String bookshelfPx;
     private Activity activity;
 
-    private ItemTouchHelpCallback.OnItemTouchCallbackListener itemTouchCallbackListener = new ItemTouchHelpCallback.OnItemTouchCallbackListener() {
+    private ItemTouchCallback.OnItemTouchCallbackListener itemTouchCallbackListener = new ItemTouchCallback.OnItemTouchCallbackListener() {
         @Override
         public void onSwiped(int adapterPosition) {
 
@@ -49,7 +48,9 @@ public class BookShelfGridAdapter extends RecyclerView.Adapter<BookShelfGridAdap
 
         @Override
         public boolean onMove(int srcPosition, int targetPosition) {
-            Collections.swap(books, srcPosition, targetPosition);
+            BookShelfBean shelfBean = books.get(srcPosition);
+            books.remove(srcPosition);
+            books.add(targetPosition, shelfBean);
             notifyItemMoved(srcPosition, targetPosition);
             int start = srcPosition;
             int end = targetPosition;
@@ -68,7 +69,7 @@ public class BookShelfGridAdapter extends RecyclerView.Adapter<BookShelfGridAdap
     }
 
     @Override
-    public ItemTouchHelpCallback.OnItemTouchCallbackListener getItemTouchCallbackListener() {
+    public ItemTouchCallback.OnItemTouchCallbackListener getItemTouchCallbackListener() {
         return itemTouchCallbackListener;
     }
 
@@ -98,6 +99,7 @@ public class BookShelfGridAdapter extends RecyclerView.Adapter<BookShelfGridAdap
         BookShelfBean bookShelfBean = books.get(index);
         BookInfoBean bookInfoBean = bookShelfBean.getBookInfoBean();
         holder.tvName.setText(bookInfoBean.getName());
+        holder.tvName.setBackgroundColor(ThemeStore.backgroundColor(activity));
         if (!activity.isFinishing()) {
             if (TextUtils.isEmpty(bookShelfBean.getCustomCoverPath())) {
                 Glide.with(activity).load(bookInfoBean.getCoverUrl())

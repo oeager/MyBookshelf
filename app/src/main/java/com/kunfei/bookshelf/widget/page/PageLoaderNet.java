@@ -6,18 +6,15 @@ import com.kunfei.bookshelf.bean.BookContentBean;
 import com.kunfei.bookshelf.bean.BookShelfBean;
 import com.kunfei.bookshelf.bean.ChapterListBean;
 import com.kunfei.bookshelf.help.BookshelfHelp;
-import com.kunfei.bookshelf.help.DocumentHelper;
 import com.kunfei.bookshelf.model.WebBookModel;
+import com.kunfei.bookshelf.model.content.WebBook;
 import com.kunfei.bookshelf.utils.NetworkUtil;
 import com.kunfei.bookshelf.utils.RxUtils;
 
-import java.io.File;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 import io.reactivex.Observable;
 import io.reactivex.ObservableOnSubscribe;
@@ -79,7 +76,11 @@ public class PageLoaderNet extends PageLoader {
 
                         @Override
                         public void onError(Throwable e) {
-                            chapterError(e.getMessage());
+                            if (e instanceof WebBook.NoSourceThrowable) {
+                                mPageView.autoChangeSource();
+                            } else {
+                                chapterError(e.getMessage());
+                            }
                         }
 
                         @Override
@@ -87,6 +88,16 @@ public class PageLoaderNet extends PageLoader {
 
                         }
                     });
+        }
+    }
+
+    @Override
+    public void changeSourceFinish(BookShelfBean book) {
+        if (book == null) {
+            super.changeSourceFinish(null);
+        } else {
+            bookShelfBean = book;
+            refreshChapterList();
         }
     }
 
@@ -104,7 +115,6 @@ public class PageLoaderNet extends PageLoader {
                 e.onComplete();
             })
                     .flatMap(index -> WebBookModel.getInstance().getBookContent(bookShelfBean.getChapter(chapterIndex), bookShelfBean.getBookInfoBean().getName()))
-                    .timeout(30, TimeUnit.SECONDS)
                     .subscribeOn(scheduler)
                     .observeOn(AndroidSchedulers.mainThread())
                     .subscribe(new Observer<BookContentBean>() {
@@ -124,7 +134,11 @@ public class PageLoaderNet extends PageLoader {
                         public void onError(Throwable e) {
                             DownloadingList(listHandle.REMOVE, bookShelfBean.getChapter(chapterIndex).getDurChapterUrl());
                             if (chapterIndex == mCurChapterPos) {
-                                chapterError(e.getMessage());
+                                if (e instanceof WebBook.NoSourceThrowable) {
+                                    mPageView.autoChangeSource();
+                                } else {
+                                    chapterError(e.getMessage());
+                                }
                             }
                         }
 
@@ -166,14 +180,8 @@ public class PageLoaderNet extends PageLoader {
     }
 
     @Override
-    protected String getChapterContent(ChapterListBean chapter) throws Exception {
-        @SuppressLint("DefaultLocale")
-        File file = BookshelfHelp.getBookFile(BookshelfHelp.getCachePathName(bookShelfBean.getBookInfoBean()),
-                chapter.getDurChapterIndex(), chapter.getDurChapterName());
-        if (!file.exists()) return null;
-
-        byte[] contentByte = DocumentHelper.getBytes(file);
-        return new String(contentByte, StandardCharsets.UTF_8);
+    protected String getChapterContent(ChapterListBean chapter) {
+        return BookshelfHelp.getChapterCache(bookShelfBean, chapter);
     }
 
     @SuppressLint("DefaultLocale")

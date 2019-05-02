@@ -16,12 +16,14 @@ import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.TextView;
 
+import androidx.appcompat.widget.AppCompatImageView;
+
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.bumptech.glide.request.RequestOptions;
 import com.hwangjr.rxbus.RxBus;
 import com.kunfei.basemvplib.AppActivityManager;
-import com.kunfei.bookshelf.BitIntentDataManager;
+import com.kunfei.basemvplib.BitIntentDataManager;
 import com.kunfei.bookshelf.R;
 import com.kunfei.bookshelf.base.MBaseActivity;
 import com.kunfei.bookshelf.bean.BookInfoBean;
@@ -40,7 +42,6 @@ import com.kunfei.bookshelf.widget.modialog.MoDialogHUD;
 import java.io.File;
 import java.util.Objects;
 
-import androidx.appcompat.widget.AppCompatImageView;
 import butterknife.BindView;
 import butterknife.ButterKnife;
 
@@ -88,7 +89,6 @@ public class BookDetailActivity extends MBaseActivity<BookDetailContract.Present
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
     }
 
     @Override
@@ -196,7 +196,7 @@ public class BookDetailActivity extends MBaseActivity<BookDetailContract.Present
     @Override
     public void getBookShelfError() {
         tvLoading.setVisibility(View.VISIBLE);
-        tvLoading.setText("加载失败,点击重试");
+        tvLoading.setText(R.string.load_error_retry);
         tvLoading.setOnClickListener(v -> {
             tvLoading.setText(R.string.loading);
             tvLoading.setOnClickListener(null);
@@ -240,26 +240,6 @@ public class BookDetailActivity extends MBaseActivity<BookDetailContract.Present
         mPresenter.getBookShelfInfo();
     }
 
-    @Override
-    protected void firstRequest() {
-        super.firstRequest();
-        if (mPresenter.getOpenFrom() == BookDetailPresenter.FROM_SEARCH) {
-            //网络请求
-            mPresenter.getBookShelfInfo();
-        }
-    }
-
-    @SuppressLint("DefaultLocale")
-    private void upChapterSizeTv() {
-        String chapterSize = "";
-        if (mPresenter.getOpenFrom() == FROM_BOOKSHELF && bookShelfBean.getChapterListSize() > 0) {
-            int newChapterNum = bookShelfBean.getChapterListSize() - 1 - bookShelfBean.getDurChapter();
-            if (newChapterNum > 0)
-                chapterSize = String.format("(+%d)", newChapterNum);
-        }
-        tvChapterSize.setText(chapterSize);
-    }
-
     @SuppressLint("ClickableViewAccessibility")
     @Override
     protected void bindEvent() {
@@ -293,7 +273,6 @@ public class BookDetailActivity extends MBaseActivity<BookDetailContract.Present
                 }));
 
         tvRead.setOnClickListener(v -> {
-            //进入阅读
             Intent intent = new Intent(BookDetailActivity.this, ReadBookActivity.class);
             intent.putExtra("openFrom", ReadBookPresenter.OPEN_FROM_APP);
             String key = String.valueOf(System.currentTimeMillis());
@@ -302,7 +281,6 @@ public class BookDetailActivity extends MBaseActivity<BookDetailContract.Present
                 BitIntentDataManager.getInstance().putData(key, mPresenter.getBookShelf().clone());
             } catch (CloneNotSupportedException e) {
                 BitIntentDataManager.getInstance().putData(key, mPresenter.getBookShelf());
-                e.printStackTrace();
             }
             startActivityByAnim(intent, android.R.anim.fade_in, android.R.anim.fade_out);
 
@@ -379,7 +357,26 @@ public class BookDetailActivity extends MBaseActivity<BookDetailContract.Present
                 mPresenter.addToBookShelf();
             }
         });
+    }
 
+    @Override
+    protected void firstRequest() {
+        super.firstRequest();
+        if (mPresenter.getOpenFrom() == BookDetailPresenter.FROM_SEARCH) {
+            //网络请求
+            mPresenter.getBookShelfInfo();
+        }
+    }
+
+    @SuppressLint("DefaultLocale")
+    private void upChapterSizeTv() {
+        String chapterSize = "";
+        if (mPresenter.getOpenFrom() == FROM_BOOKSHELF && bookShelfBean.getChapterListSize() > 0) {
+            int newChapterNum = bookShelfBean.getChapterListSize() - 1 - bookShelfBean.getDurChapter();
+            if (newChapterNum > 0)
+                chapterSize = String.format("(+%d)", newChapterNum);
+        }
+        tvChapterSize.setText(chapterSize);
     }
 
     @Override

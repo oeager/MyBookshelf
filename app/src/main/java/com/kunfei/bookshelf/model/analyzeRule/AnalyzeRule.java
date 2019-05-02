@@ -1,46 +1,46 @@
 package com.kunfei.bookshelf.model.analyzeRule;
 
+import android.annotation.SuppressLint;
 import android.text.TextUtils;
-import android.util.Base64;
+
+import androidx.annotation.Keep;
 
 import com.google.gson.Gson;
 import com.kunfei.bookshelf.base.BaseModelImpl;
 import com.kunfei.bookshelf.bean.BaseBookBean;
-import com.kunfei.bookshelf.model.impl.IHttpGetApi;
 import com.kunfei.bookshelf.utils.NetworkUtil;
 import com.kunfei.bookshelf.utils.StringUtils;
 
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
-
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import javax.script.ScriptEngine;
-import javax.script.ScriptEngineManager;
-import javax.script.ScriptException;
 import javax.script.SimpleBindings;
 
-import retrofit2.Call;
+import retrofit2.Response;
 
+import static com.kunfei.bookshelf.constant.AppConstant.EXP_PATTERN;
+import static com.kunfei.bookshelf.constant.AppConstant.JS_PATTERN;
 import static com.kunfei.bookshelf.constant.AppConstant.MAP_STRING;
+import static com.kunfei.bookshelf.constant.AppConstant.SCRIPT_ENGINE;
 
 
 /**
  * Created by REFGD.
  * 统一解析接口
  */
+@Keep
 public class AnalyzeRule {
     private static final Pattern putPattern = Pattern.compile("@put:\\{.+?\\}", Pattern.CASE_INSENSITIVE);
     private static final Pattern getPattern = Pattern.compile("@get:\\{.+?\\}", Pattern.CASE_INSENSITIVE);
 
     private BaseBookBean book;
-    private Object _object;
-    private Boolean _isJSON;
+    private Object object;
+    private Boolean isJSON;
+    private String baseUrl = null;
 
     private AnalyzeByXPath analyzeByXPath = null;
     private AnalyzeByJSoup analyzeByJSoup = null;
@@ -58,150 +58,200 @@ public class AnalyzeRule {
         this.book = book;
     }
 
-    public void setContent(String body) {
-        if (body == null) throw new AssertionError("Content cannot be null");
-        _isJSON = StringUtils.isJsonType(body);
-        if (!_isJSON) {
-            _object = Jsoup.parse(body);
-        } else {
-            _object = body;
-        }
-        objectChangedXP = true;
-        objectChangedJS = true;
-        objectChangedJP = true;
+    public AnalyzeRule setContent(Object body) {
+        return setContent(body, null);
     }
 
-    public void setContent(Object object, boolean isJSON) {
-        _object = object;
-        _isJSON = isJSON;
+    public AnalyzeRule setContent(Object body, String baseUrl) {
+        if (body == null) throw new AssertionError("Content cannot be null");
+        isJSON = StringUtils.isJsonType(String.valueOf(body));
+        object = body;
+        this.baseUrl = baseUrl;
         objectChangedXP = true;
         objectChangedJS = true;
         objectChangedJP = true;
+        return this;
+    }
+
+    /**
+     * 获取XPath解析类
+     */
+    private AnalyzeByXPath getAnalyzeByXPath(Object o) {
+        if (o != null) {
+            return new AnalyzeByXPath().parse(o.toString());
+        }
+        return getAnalyzeByXPath();
     }
 
     private AnalyzeByXPath getAnalyzeByXPath() {
         if (analyzeByXPath == null || objectChangedXP) {
             analyzeByXPath = new AnalyzeByXPath();
-            analyzeByXPath.parse(_object.toString());
+            analyzeByXPath.parse(object.toString());
             objectChangedXP = false;
         }
         return analyzeByXPath;
     }
 
+    /**
+     * 获取JSOUP解析类
+     */
+    private AnalyzeByJSoup getAnalyzeByJSoup(Object o) {
+        if (o != null) {
+            return new AnalyzeByJSoup().parse(o.toString());
+        }
+        return getAnalyzeByJSoup();
+    }
+
     private AnalyzeByJSoup getAnalyzeByJSoup() {
         if (analyzeByJSoup == null || objectChangedJS) {
             analyzeByJSoup = new AnalyzeByJSoup();
-            analyzeByJSoup.parse((Element) _object);
+            analyzeByJSoup.parse(object);
             objectChangedJS = false;
         }
         return analyzeByJSoup;
     }
 
+    /**
+     * 获取JSON解析类
+     */
+    private AnalyzeByJSonPath getAnalyzeByJSonPath(Object o) {
+        if (o != null) {
+            if (o instanceof String) {
+                return new AnalyzeByJSonPath().parse(o.toString());
+            }
+            return new AnalyzeByJSonPath().parse(o);
+        }
+        return getAnalyzeByJSonPath();
+    }
+
     private AnalyzeByJSonPath getAnalyzeByJSonPath() {
         if (analyzeByJSonPath == null || objectChangedJP) {
             analyzeByJSonPath = new AnalyzeByJSonPath();
-            if (_object instanceof String) {
-                analyzeByJSonPath.parse(String.valueOf(_object));
+            if (object instanceof String) {
+                analyzeByJSonPath.parse(String.valueOf(object));
             } else {
-                analyzeByJSonPath.parse(_object);
+                analyzeByJSonPath.parse(object);
             }
             objectChangedJP = false;
         }
         return analyzeByJSonPath;
     }
 
-    public List<String> getStringList(String rule) {
-        return getStringList(rule, null);
+    /**
+     * 获取文本列表
+     */
+    public List<String> getStringList(String rule) throws Exception {
+        return getStringList(rule, false);
     }
 
-    public List<String> getStringList(String rule, String baseUrl) {
-        List<String> stringList;
-        SourceRule source = new SourceRule(rule);
-        switch (source.mode) {
-            case JSon:
-                stringList = getAnalyzeByJSonPath().readStringList(source.rule);
-                break;
-            case XPath:
-                stringList = getAnalyzeByXPath().getStringList(source.rule);
-                break;
-            default:
-                stringList = getAnalyzeByJSoup().getAllResultList(source.rule);
+    @SuppressWarnings("unchecked")
+    public List<String> getStringList(String ruleStr, boolean isUrl) throws Exception {
+        Object result = null;
+        List<SourceRule> ruleList = splitSourceRule(ruleStr);
+        for (SourceRule rule : ruleList) {
+            switch (rule.mode) {
+                case Js:
+                    if (result == null) result = object;
+                    result = evalJS(rule.rule, result);
+                    break;
+                case JSon:
+                    result = getAnalyzeByJSonPath(result).getStringList(rule.rule);
+                    break;
+                case XPath:
+                    result = getAnalyzeByXPath(result).getStringList(rule.rule);
+                    break;
+                default:
+                    result = getAnalyzeByJSoup(result).getStringList(rule.rule);
+            }
         }
-        if (!StringUtils.isTrimEmpty(baseUrl)) {
+        if (result == null) return new ArrayList<>();
+        if (result instanceof String) {
+            result = Arrays.asList(StringUtils.formatHtml((String) result).split("\n"));
+        }
+        if (isUrl && !TextUtils.isEmpty(baseUrl)) {
             List<String> urlList = new ArrayList<>();
-            for (String url : stringList) {
-                url = NetworkUtil.getAbsoluteURL(baseUrl, url);
-                if (!urlList.contains(url)) {
-                    urlList.add(url);
+            for (Object url : (List<Object>) result) {
+                String absoluteURL = NetworkUtil.getAbsoluteURL(baseUrl, String.valueOf(url));
+                if (!urlList.contains(absoluteURL)) {
+                    urlList.add(absoluteURL);
                 }
             }
             return urlList;
         }
-        return stringList;
+        return (List<String>) result;
     }
 
-    public String getString(String rule) {
-        return getString(rule, null);
+    /**
+     * 获取文本
+     */
+    public String getString(String rule) throws Exception {
+        return getString(rule, false);
     }
 
-    public String getString(String rule, String _baseUrl) {
-        if (StringUtils.isTrimEmpty(rule)) {
+    public String getString(String ruleStr, boolean isUrl) throws Exception {
+        if (StringUtils.isTrimEmpty(ruleStr)) {
             return null;
         }
-        String result = "";
-        SourceRule source = new SourceRule(rule);
-        if (!StringUtils.isTrimEmpty(source.rule)) {
-            switch (source.mode) {
-                case JSon:
-                    result = getAnalyzeByJSonPath().read(source.rule);
-                    break;
-                case XPath:
-                    result = getAnalyzeByXPath().getString(source.rule, _baseUrl);
-                    break;
-                case Default:
-                    if (TextUtils.isEmpty(_baseUrl)) {
-                        result = getAnalyzeByJSoup().getResult(source.rule);
-                    } else {
-                        result = getAnalyzeByJSoup().getResultUrl(source.rule);
-                    }
+        Object result = null;
+        List<SourceRule> ruleList = splitSourceRule(ruleStr);
+        for (SourceRule rule : ruleList) {
+            if (!StringUtils.isTrimEmpty(rule.rule)) {
+                switch (rule.mode) {
+                    case Js:
+                        if (result == null) result = object;
+                        result = evalJS(rule.rule, result);
+                        break;
+                    case JSon:
+                        result = getAnalyzeByJSonPath(result).getString(rule.rule);
+                        break;
+                    case XPath:
+                        result = getAnalyzeByXPath(result).getString(rule.rule);
+                        break;
+                    case Default:
+                        if (isUrl && !TextUtils.isEmpty(baseUrl)) {
+                            result = getAnalyzeByJSoup(result).getString0(rule.rule);
+                        } else {
+                            result = getAnalyzeByJSoup(result).getString(rule.rule);
+                        }
+                }
             }
-        } else {
-            result = String.valueOf(_object);
         }
-        if (!StringUtils.isTrimEmpty(source.js)) {
-            result = (String) evalJS(source.js, result, _baseUrl);
+        if (isUrl && !StringUtils.isTrimEmpty(baseUrl)) {
+            return NetworkUtil.getAbsoluteURL(baseUrl, (String) result);
         }
-        if (!StringUtils.isTrimEmpty(_baseUrl)) {
-            result = NetworkUtil.getAbsoluteURL(_baseUrl, result);
-        }
-        return result;
+        return StringUtils.formatHtml((String) result);
     }
 
-    public AnalyzeCollection getElements(String rule) {
-        AnalyzeCollection collection;
-        SourceRule source = new SourceRule(rule);
-        if (!StringUtils.isTrimEmpty(source.rule)) {
-            switch (source.mode) {
+    /**
+     * 获取列表
+     */
+    @SuppressWarnings("unchecked")
+    public List<Object> getElements(String ruleStr) throws Exception {
+        Object result = null;
+        List<SourceRule> ruleList = splitSourceRule(ruleStr);
+        for (SourceRule rule : ruleList) {
+            switch (rule.mode) {
+                case Js:
+                    if (result == null) result = object;
+                    result = evalJS(rule.rule, result);
+                    break;
                 case JSon:
-                    collection = new AnalyzeCollection(getAnalyzeByJSonPath().readList(source.rule), true);
+                    result = getAnalyzeByJSonPath(result).getList(rule.rule);
                     break;
                 case XPath:
-                    collection = new AnalyzeCollection(getAnalyzeByXPath().getElements(source.rule));
+                    result = getAnalyzeByXPath(result).getElements(rule.rule);
                     break;
                 default:
-                    collection = new AnalyzeCollection(getAnalyzeByJSoup().getElements(source.rule));
+                    result = getAnalyzeByJSoup(result).getElements(rule.rule);
             }
-            if (!StringUtils.isTrimEmpty(source.js)) {
-                collection = (AnalyzeCollection) evalJS(source.js, collection, null);
-            }
-            return collection;
-        } else if (!StringUtils.isTrimEmpty(source.js)) {
-            return (AnalyzeCollection) evalJS(source.js, _object, null);
         }
-        return null;
+        return (List<Object>) result;
     }
 
-    private void analyzeVariable(Map<String, String> putVariable) {
+    /**
+     * 保存变量
+     */
+    private void analyzeVariable(Map<String, String> putVariable) throws Exception {
         for (Map.Entry<String, String> entry : putVariable.entrySet()) {
             if (book != null) {
                 book.putVariable(entry.getKey(), getString(entry.getValue()));
@@ -209,91 +259,157 @@ public class AnalyzeRule {
         }
     }
 
-    class SourceRule {
+    /**
+     * 分解规则生成规则列表
+     */
+    @SuppressLint("DefaultLocale")
+    private List<SourceRule> splitSourceRule(String ruleStr) throws Exception {
+        List<SourceRule> ruleList = new ArrayList<>();
+        if (ruleStr == null) return ruleList;
+        //检测Mode
+        Mode mode;
+        if (StringUtils.startWithIgnoreCase(ruleStr, "@XPath:")) {
+            mode = Mode.XPath;
+            ruleStr = ruleStr.substring(7);
+        } else if (StringUtils.startWithIgnoreCase(ruleStr, "@JSon:")) {
+            mode = Mode.JSon;
+            ruleStr = ruleStr.substring(6);
+        } else {
+            if (isJSON) {
+                mode = Mode.JSon;
+            } else {
+                mode = Mode.Default;
+            }
+        }
+        //分离put规则
+        Matcher putMatcher = putPattern.matcher(ruleStr);
+        while (putMatcher.find()) {
+            String find = putMatcher.group();
+            ruleStr = ruleStr.replace(find, "");
+            find = find.substring(5);
+            try {
+                Map<String, String> putVariable = new Gson().fromJson(find, MAP_STRING);
+                analyzeVariable(putVariable);
+            } catch (Exception ignored) {
+            }
+        }
+        //替换get值
+        Matcher getMatcher = getPattern.matcher(ruleStr);
+        while (getMatcher.find()) {
+            String find = getMatcher.group();
+            String value = "";
+            if (book != null && book.getVariableMap() != null) {
+                value = book.getVariableMap().get(find.substring(6, find.length() - 1));
+                if (value == null) value = "";
+            }
+            ruleStr = ruleStr.replace(find, value);
+        }
+        //替换js
+        if(ruleStr.contains("{{") && ruleStr.contains("}}")){
+            Object jsEval;
+            StringBuffer sb = new StringBuffer(ruleStr.length());
+            Matcher expMatcher = EXP_PATTERN.matcher(ruleStr);
+            while (expMatcher.find()){
+                jsEval = evalJS(expMatcher.group(1), object);
+                if(jsEval instanceof String){
+                    expMatcher.appendReplacement(sb,(String) jsEval);
+                }
+                else if(jsEval instanceof Double && ((Double) jsEval) % 1.0 == 0){
+                    expMatcher.appendReplacement(sb,String.format("%.0f",(Double) jsEval));
+                }
+                else {
+                    expMatcher.appendReplacement(sb,String.valueOf(jsEval));
+                }
+            }
+            expMatcher.appendTail(sb);
+            ruleStr = sb.toString();
+        }
+        //拆分为列表
+        int start = 0;
+        String tmp;
+        Matcher jsMatcher = JS_PATTERN.matcher(ruleStr);
+        while (jsMatcher.find()) {
+            if (jsMatcher.start() > start) {
+                tmp = ruleStr.substring(start, jsMatcher.start()).replaceAll("\n", "").trim();
+                if (!TextUtils.isEmpty(tmp)) {
+                    ruleList.add(new SourceRule(tmp, mode));
+                }
+            }
+            ruleList.add(new SourceRule(jsMatcher.group(), Mode.Js));
+            start = jsMatcher.end();
+        }
+        if (ruleStr.length() > start) {
+            tmp = ruleStr.substring(start).replaceAll("\n", "").trim();
+            if (!TextUtils.isEmpty(tmp)) {
+                ruleList.add(new SourceRule(tmp, mode));
+            }
+        }
+        return ruleList;
+    }
+
+    /**
+     * 规则类
+     */
+    private class SourceRule {
         Mode mode;
         String rule;
-        String js;
 
-        SourceRule(String ruleStr) {
-            //分离put规则
-            Matcher putMatcher = putPattern.matcher(ruleStr);
-            if (putMatcher.find()) {
-                String find = putMatcher.group(0);
-                ruleStr = ruleStr.replace(find, "");
-                find = find.substring(5);
-                try {
-                    Map<String, String> putVariable = new Gson().fromJson(find, MAP_STRING);
-                    analyzeVariable(putVariable);
-                } catch (Exception ignored) {
-                }
-            }
-            //替换get值
-            Matcher getMatcher = getPattern.matcher(ruleStr);
-            while (getMatcher.find()) {
-                String find = getMatcher.group();
-                String value = "";
-                if (book != null && book.getVariableMap() != null) {
-                    value = book.getVariableMap().get(find.substring(6, find.length() - 1));
-                    if (value == null) value = "";
-                }
-                ruleStr = ruleStr.replace(find, value);
-            }
-            String str[] = ruleStr.split("@js:");
-            if (StringUtils.startWithIgnoreCase(str[0], "@XPath:")) {
-                mode = Mode.XPath;
-                rule = str[0].substring(7);
-            } else if (StringUtils.startWithIgnoreCase(str[0], "//")) {//XPath特征很明显,无需配置单独的识别标头
-                mode = Mode.XPath;
-                rule = str[0];
-            } else if (StringUtils.startWithIgnoreCase(str[0], "@JSon:")) {
-                mode = Mode.JSon;
-                rule = str[0].substring(6);
-            } else {
-                if (_isJSON) {
-                    mode = Mode.JSon;
+        SourceRule(String ruleStr, Mode mainMode) {
+            this.mode = mainMode;
+            if (mode == Mode.Js) {
+                if (ruleStr.startsWith("<js>")) {
+                    rule = ruleStr.substring(4, ruleStr.lastIndexOf("<"));
                 } else {
-                    mode = Mode.Default;
+                    rule = ruleStr.substring(4);
                 }
-                rule = str[0];
-            }
-            if (str.length > 1) {
-                js = str[1];
+            } else {
+                if (StringUtils.startWithIgnoreCase(ruleStr, "@XPath:")) {
+                    mode = Mode.XPath;
+                    rule = ruleStr.substring(7);
+                } else if (StringUtils.startWithIgnoreCase(ruleStr, "//")) {//XPath特征很明显,无需配置单独的识别标头
+                    mode = Mode.XPath;
+                    rule = ruleStr;
+                } else if (StringUtils.startWithIgnoreCase(ruleStr, "@JSon:")) {
+                    mode = Mode.JSon;
+                    rule = ruleStr.substring(6);
+                } else if (ruleStr.startsWith("$.")) {
+                    mode = Mode.JSon;
+                    rule = ruleStr;
+                } else {
+                    rule = ruleStr;
+                }
             }
         }
 
     }
 
     private enum Mode {
-        XPath, JSon, Default
+        XPath, JSon, Default, Js
     }
 
-    private static class EngineHelper {
-        private static final ScriptEngine INSTANCE = new ScriptEngineManager().getEngineByName("rhino");
-    }
-
-    private Object evalJS(String jsStr, Object result, String baseUrl) {
+    /**
+     * 执行JS
+     */
+    private Object evalJS(String jsStr, Object result) throws Exception {
         SimpleBindings bindings = new SimpleBindings();
         bindings.put("java", this);
         bindings.put("result", result);
         bindings.put("baseUrl", baseUrl);
-        try {
-            result = EngineHelper.INSTANCE.eval(jsStr, bindings);
-        } catch (ScriptException ignored) {
-        }
-        return result;
+        return SCRIPT_ENGINE.eval(jsStr, bindings);
     }
 
     /**
      * js实现跨域访问,不能删
      */
     @SuppressWarnings("unused")
-    public String ajax(String url) {
+    public String ajax(String urlStr) {
         try {
-            Call<String> call = BaseModelImpl.getInstance().getRetrofitString(url)
-                    .create(IHttpGetApi.class).getWebContentCall(url, null);
-            return call.execute().body();
+            AnalyzeUrl analyzeUrl = new AnalyzeUrl(urlStr);
+            Response<String> response = BaseModelImpl.getInstance().getResponseO(analyzeUrl)
+                    .blockingFirst();
+            return response.body();
         } catch (Exception e) {
-            return null;
+            return e.getLocalizedMessage();
         }
     }
 
@@ -302,6 +418,7 @@ public class AnalyzeRule {
      */
     @SuppressWarnings("unused")
     public String base64Decoder(String base64) {
-        return new String(Base64.decode(base64.getBytes(), Base64.DEFAULT));
+        return StringUtils.base64Decode(base64);
     }
+
 }

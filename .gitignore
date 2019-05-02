@@ -5,5 +5,7 @@
 /local.properties
 /build
 /captures
+/app/release/
 google-services.json
-app/release/
+
+src/androidTest/

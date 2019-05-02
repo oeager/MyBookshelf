@@ -6,15 +6,17 @@ import com.kunfei.bookshelf.MApplication;
 import java.io.File;
 import java.lang.reflect.Type;
 import java.util.Map;
+import java.util.regex.Pattern;
 
-/**
- * Created by newbiechen on 17-4-16.
- */
+import javax.script.ScriptEngine;
+import javax.script.ScriptEngineManager;
 
 public class AppConstant {
 
+    public static final String ActionStartService = "startService";
+    public static final String ActionDoneService = "doneService";
+
     //Book Date Convert Format
-    public static final String FORMAT_BOOK_DATE = "yyyy-MM-dd'T'HH:mm:ss";
     public static final String FORMAT_TIME = "HH:mm";
     public static final String FORMAT_FILE_DATE = "yyyy-MM-dd";
     //BookCachePath (因为getCachePath引用了Context，所以必须是静态变量，不能够是静态常量)
@@ -24,4 +26,10 @@ public class AppConstant {
     }.getType();
 
     public static final String DEFAULT_WEB_DAV_URL = "https://dav.jianguoyun.com/dav/";
+
+    public static final Pattern JS_PATTERN = Pattern.compile("(<js>[\\w\\W]*?</js>|@js:[\\w\\W]*$)", Pattern.CASE_INSENSITIVE);
+    public static final Pattern EXP_PATTERN = Pattern.compile("\\{\\{([\\w\\W]*?)\\}\\}");
+
+    public static final ScriptEngine SCRIPT_ENGINE = new ScriptEngineManager().getEngineByName("rhino");
+
 }

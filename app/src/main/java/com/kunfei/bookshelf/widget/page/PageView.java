@@ -4,17 +4,14 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
-import android.graphics.RectF;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.ViewConfiguration;
 
 import com.kunfei.bookshelf.bean.BookShelfBean;
 import com.kunfei.bookshelf.help.FileHelp;
 import com.kunfei.bookshelf.help.ReadBookControl;
 import com.kunfei.bookshelf.utils.ScreenUtils;
-import com.kunfei.bookshelf.utils.SharedPreferencesUtil;
 import com.kunfei.bookshelf.utils.bar.ImmersionBar;
 import com.kunfei.bookshelf.view.activity.ReadBookActivity;
 import com.kunfei.bookshelf.widget.page.animation.CoverPageAnim;
@@ -43,16 +40,9 @@ public class PageView extends View {
     private int mViewHeight = 0; // 当前View的高
     private int statusBarHeight = 0; //状态栏高度
 
-    private int mStartX = 0;
-    private int mStartY = 0;
-    private boolean isMove = false;
     private boolean actionFromEdge = false;
     // 初始化参数
     private ReadBookControl readBookControl = ReadBookControl.getInstance();
-    // 是否允许点击
-    private boolean canTouch = true;
-    // 唤醒菜单的区域
-    private RectF mCenterRect = null;
     private boolean isPrepare;
     // 动画类
     private PageAnimation mPageAnim;
@@ -87,6 +77,17 @@ public class PageView extends View {
             PageView.this.drawBackground(canvas);
         }
 
+        @Override
+        public void changePage(PageAnimation.Direction direction) {
+            mPageLoader.pagingEnd(direction);
+        }
+
+        @Override
+        public void clickCenter() {
+            if (mTouchListener != null) {
+                mTouchListener.center();
+            }
+        }
     };
 
     public PageView(Context context) {
@@ -102,16 +103,17 @@ public class PageView extends View {
     }
 
     @Override
-    protected void onSizeChanged(int w, int h, int oldw, int oldh) {
-        super.onSizeChanged(w, h, oldw, oldh);
-        mViewWidth = w;
-        mViewHeight = h;
+    protected void onSizeChanged(int width, int height, int oldWidth, int oldHeight) {
+        super.onSizeChanged(width, height, oldWidth, oldHeight);
+        mViewWidth = width;
+        mViewHeight = height;
 
         isPrepare = true;
 
         if (mPageLoader != null) {
-            mPageLoader.prepareDisplay(w, h);
+            mPageLoader.prepareDisplay(width, height);
         }
+
     }
 
     //设置翻页的模式
@@ -151,11 +153,6 @@ public class PageView extends View {
         return statusBarHeight;
     }
 
-    public Bitmap getContentBitmap(int pageOnCur) {
-        if (mPageAnim == null) return null;
-        return mPageAnim.getContentBitmap(pageOnCur);
-    }
-
     public Bitmap getBgBitmap(int pageOnCur) {
         if (mPageAnim == null) return null;
         return mPageAnim.getBgBitmap(pageOnCur);
@@ -163,9 +160,9 @@ public class PageView extends View {
 
     public void autoPrevPage() {
         if (mPageAnim instanceof ScrollPageAnim) {
-            ((ScrollPageAnim) mPageAnim).startAnim(PageAnimation.Direction.PRE);
+            ((ScrollPageAnim) mPageAnim).startAnim(PageAnimation.Direction.PREV);
         } else {
-            startHorizonPageAnim(PageAnimation.Direction.PRE);
+            startHorizonPageAnim(PageAnimation.Direction.PREV);
         }
     }
 
@@ -189,7 +186,7 @@ public class PageView extends View {
             //设置点击点
             mPageAnim.setTouchPoint(x, y);
             //设置方向
-            Boolean hasNext = hasNextPage(0);
+            boolean hasNext = hasNextPage(0);
 
             mPageAnim.setDirection(direction);
             if (!hasNext) {
@@ -205,7 +202,7 @@ public class PageView extends View {
             mPageAnim.setTouchPoint(x, y);
             mPageAnim.setDirection(direction);
             //设置方向方向
-            Boolean hashPrev = hasPrevPage();
+            boolean hashPrev = hasPrevPage();
             if (!hashPrev) {
                 ((HorizonPageAnim) mPageAnim).setNoNext(true);
                 return;
@@ -219,14 +216,17 @@ public class PageView extends View {
     public void drawPage(int pageOnCur) {
         if (!isPrepare) return;
         if (mPageLoader != null) {
-            Bitmap content = (mPageAnim instanceof ScrollPageAnim) ? getBgBitmap(pageOnCur) : getContentBitmap(pageOnCur);
-            mPageLoader.drawPage(getBgBitmap(pageOnCur), content, pageOnCur);
+            mPageLoader.drawPage(getBgBitmap(pageOnCur), pageOnCur);
             if (mPageAnim instanceof SimulationPageAnim) {
                 ((SimulationPageAnim) mPageAnim).onPageDrawn(pageOnCur);
             }
         }
+        invalidate();
     }
 
+    /**
+     * 绘制滚动背景
+     */
     public void drawBackground(Canvas canvas) {
         if (!isPrepare) return;
         if (mPageLoader != null) {
@@ -234,13 +234,9 @@ public class PageView extends View {
         }
     }
 
-    public void drawBackground(int pageOnCur) {
-        if (!isPrepare) return;
-        if (mPageLoader != null) {
-            mPageLoader.drawPage(getBgBitmap(pageOnCur), null, pageOnCur);
-        }
-    }
-
+    /**
+     * 绘制滚动内容
+     */
     public void drawContent(Canvas canvas, float offset) {
         if (!isPrepare) return;
         if (mPageLoader != null) {
@@ -248,11 +244,27 @@ public class PageView extends View {
         }
     }
 
+    /**
+     * 绘制横翻背景
+     */
+    public void drawBackground(int pageOnCur) {
+        if (!isPrepare) return;
+        if (mPageLoader != null) {
+            mPageLoader.drawPage(getBgBitmap(pageOnCur), pageOnCur);
+        }
+        invalidate();
+    }
+
+    /**
+     * 绘制横翻内容
+     * @param pageOnCur 相对当前页的位置
+     */
     public void drawContent(int pageOnCur) {
         if (!isPrepare) return;
         if (mPageLoader != null) {
-            mPageLoader.drawPage(null, getContentBitmap(pageOnCur), pageOnCur);
+            mPageLoader.drawPage(getBgBitmap(pageOnCur), pageOnCur);
         }
+        invalidate();
     }
 
     @Override
@@ -270,13 +282,6 @@ public class PageView extends View {
         //进行滑动
         if (mPageAnim != null) {
             mPageAnim.scrollAnim();
-            if (mPageAnim.isChangePage() && !mPageAnim.getScroller().computeScrollOffset()) {
-                mPageAnim.changePageEnd();
-                if (mPageAnim.getDirection() != PageAnimation.Direction.NONE) {
-                    mPageLoader.pagingEnd(mPageAnim.getDirection());
-                    mPageAnim.setDirection(PageAnimation.Direction.NONE);
-                }
-            }
         }
         super.computeScroll();
     }
@@ -285,73 +290,22 @@ public class PageView extends View {
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         super.onTouchEvent(event);
-
-        if (mPageAnim == null) {
-            return true;
-        }
-
-        if (!canTouch && event.getAction() != MotionEvent.ACTION_DOWN) {
-            return true;
-        }
-
+        if (mPageAnim == null) return true;
         if (actionFromEdge) {
             if (event.getAction() == MotionEvent.ACTION_UP)
                 actionFromEdge = false;
             return true;
         }
 
-        int x = (int) event.getX();
-        int y = (int) event.getY();
-        switch (event.getAction()) {
-            case MotionEvent.ACTION_DOWN:
-                if (event.getEdgeFlags() != 0 || event.getRawY() < ScreenUtils.dpToPx(20) || event.getRawY() > getDisplayMetrics().heightPixels - ScreenUtils.dpToPx(20)) {
-                    actionFromEdge = true;
-                    return true;
-                }
-                mStartX = x;
-                mStartY = y;
-                isMove = false;
-                canTouch = mTouchListener.onTouch();
-                mPageAnim.onTouchEvent(event);
-                break;
-            case MotionEvent.ACTION_MOVE:
-                // 判断是否大于最小滑动值。
-                int slop = ViewConfiguration.get(getContext()).getScaledTouchSlop();
-                if (!isMove) {
-                    isMove = Math.abs(mStartX - event.getX()) > slop || Math.abs(mStartY - event.getY()) > slop;
-                }
-
-                // 如果滑动了，则进行翻页。
-                if (isMove) {
-                    mPageAnim.onTouchEvent(event);
-                }
-                break;
-            case MotionEvent.ACTION_UP:
-                if (!isMove) {
-                    //设置中间区域范围
-                    if (mCenterRect == null) {
-                        mCenterRect = new RectF(mViewWidth / 3, mViewHeight / 3,
-                                mViewWidth * 2 / 3, mViewHeight * 2 / 3);
-                    }
-
-                    //是否点击了中间
-                    if (mCenterRect.contains(x, y)) {
-                        if (mTouchListener != null) {
-                            mTouchListener.center();
-                        }
-                        return true;
-                    }
-
-                    if (!readBookControl.getCanClickTurn() || isRunning()) {
-                        return true;
-                    }
-
-                    if (mPageAnim instanceof ScrollPageAnim && SharedPreferencesUtil.getBoolean("disableScrollClickTurn", false)) {
-                        return true;
-                    }
-                }
-                mPageAnim.onTouchEvent(event);
-                break;
+        if (event.getAction() == MotionEvent.ACTION_DOWN) {
+            if (event.getEdgeFlags() != 0 || event.getRawY() < ScreenUtils.dpToPx(5) || event.getRawY() > getDisplayMetrics().heightPixels - ScreenUtils.dpToPx(5)) {
+                actionFromEdge = true;
+                return true;
+            }
+            mTouchListener.onTouch();
+            mPageAnim.onTouchEvent(event);
+        } else {
+            mPageAnim.onTouchEvent(event);
         }
         return true;
     }
@@ -439,12 +393,17 @@ public class PageView extends View {
         return mPageLoader;
     }
 
+    public void autoChangeSource() {
+        mPageLoader.setStatus(TxtChapter.Status.CHANGE_SOURCE);
+        activity.autoChangeSource();
+    }
+
     public void showSnackBar(String msg) {
         activity.showSnackBar(this, msg);
     }
 
     public interface TouchListener {
-        boolean onTouch();
+        void onTouch();
 
         void center();
     }

@@ -3,10 +3,10 @@ package com.kunfei.bookshelf.help;
 import android.annotation.SuppressLint;
 import android.text.TextUtils;
 
+import com.kunfei.bookshelf.DbHelper;
 import com.kunfei.bookshelf.bean.BaseChapterBean;
 import com.kunfei.bookshelf.bean.BookInfoBean;
 import com.kunfei.bookshelf.bean.BookShelfBean;
-import com.kunfei.bookshelf.bean.BookSourceBean;
 import com.kunfei.bookshelf.bean.BookmarkBean;
 import com.kunfei.bookshelf.bean.ChapterListBean;
 import com.kunfei.bookshelf.bean.DownloadChapterBean;
@@ -14,10 +14,8 @@ import com.kunfei.bookshelf.bean.SearchBookBean;
 import com.kunfei.bookshelf.constant.AppConstant;
 import com.kunfei.bookshelf.dao.BookInfoBeanDao;
 import com.kunfei.bookshelf.dao.BookShelfBeanDao;
-import com.kunfei.bookshelf.dao.BookSourceBeanDao;
 import com.kunfei.bookshelf.dao.BookmarkBeanDao;
 import com.kunfei.bookshelf.dao.ChapterListBeanDao;
-import com.kunfei.bookshelf.dao.DbHelper;
 import com.kunfei.bookshelf.utils.StringUtils;
 
 import net.ricecode.similarity.JaroWinklerStrategy;
@@ -28,8 +26,8 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.text.DecimalFormat;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -44,7 +42,7 @@ import java.util.regex.Pattern;
 
 public class BookshelfHelp {
 
-    public static Pattern chapterNamePattern = Pattern.compile("^(.*?第([\\d零〇一二两三四五六七八九十百千万０-９\\s]+)[章节篇回集])[、，。　：:.\\s]*");
+    public static Pattern chapterNamePattern = Pattern.compile("^(.*?第([\\d零〇一二两三四五六七八九十百千万壹贰叁肆伍陆柒捌玖拾佰仟０-９\\s]+)[章节篇回集])[、，。　：:.\\s]*");
     private static HashMap<String, HashSet<Integer>> chapterCaches = getChapterCaches();
 
     private static HashMap<String, HashSet<Integer>> getChapterCaches() {
@@ -63,8 +61,7 @@ public class BookshelfHelp {
                 }
                 temp.put(bookPath, chapterIndexS);
             }
-        } catch (Exception e) {
-            e.printStackTrace();
+        } catch (Exception ignored) {
         }
         return temp;
     }
@@ -79,10 +76,6 @@ public class BookshelfHelp {
 
     public static String getCacheFileName(int chapterIndex, String chapterName) {
         return formatFileName(chapterIndex, chapterName);
-    }
-
-    public static void setChapterIsCached(String bookName, ChapterListBean chapter, boolean cached) {
-        setChapterIsCached(bookName + "-" + chapter.getTag(), chapter.getDurChapterIndex(), cached);
     }
 
     public static boolean setChapterIsCached(String bookPathName, Integer index, boolean cached) {
@@ -110,6 +103,16 @@ public class BookshelfHelp {
     public static boolean isChapterCached(BookInfoBean book, BaseChapterBean chapter) {
         final String path = getCachePathName(book);
         return chapterCaches.containsKey(path) && chapterCaches.get(path).contains(chapter.getDurChapterIndex());
+    }
+
+    public static String getChapterCache(BookShelfBean bookShelfBean, ChapterListBean chapter) {
+        @SuppressLint("DefaultLocale")
+        File file = getBookFile(BookshelfHelp.getCachePathName(bookShelfBean.getBookInfoBean()),
+                chapter.getDurChapterIndex(), chapter.getDurChapterName());
+        if (!file.exists()) return null;
+
+        byte[] contentByte = DocumentHelper.getBytes(file);
+        return new String(contentByte, StandardCharsets.UTF_8);
     }
 
     public static void clearCaches(boolean clearChapterList) {
@@ -325,12 +328,6 @@ public class BookshelfHelp {
         removeFromBookShelf(bookShelfBean, false);
     }
 
-    public static void saveBookSource(BookSourceBean bookSourceBean) {
-        if (bookSourceBean != null) {
-            DbHelper.getDaoSession().getBookSourceBeanDao().insertOrReplace(bookSourceBean);
-        }
-    }
-
     /**
      * 保存书籍
      */
@@ -363,19 +360,16 @@ public class BookshelfHelp {
         bookInfo.setIntroduce(searchBookBean.getIntroduce());
         bookInfo.setChapterUrl(searchBookBean.getChapterUrl());
         bookShelfBean.setBookInfoBean(bookInfo);
+        bookShelfBean.setVariable(searchBookBean.getVariable());
         return bookShelfBean;
     }
 
     public static List<ChapterListBean> getChapterList(String noteUrl) {
-        List<ChapterListBean> chapterListBeans = DbHelper.getDaoSession().getChapterListBeanDao().queryBuilder()
+        return DbHelper.getDaoSession().getChapterListBeanDao().queryBuilder()
                 .where(ChapterListBeanDao.Properties.NoteUrl.eq(noteUrl))
                 .orderAsc(ChapterListBeanDao.Properties.DurChapterIndex)
                 .build()
                 .list();
-        if (chapterListBeans == null) {
-            chapterListBeans = new ArrayList<>();
-        }
-        return chapterListBeans;
     }
 
     public static void delChapterList(String noteUrl) {
@@ -418,11 +412,11 @@ public class BookshelfHelp {
         return percent;
     }
 
-    public static BookSourceBean getBookSourceByTag(String tag) {
-        if (tag == null)
-            return null;
-        return DbHelper.getDaoSession().getBookSourceBeanDao().queryBuilder()
-                .where(BookSourceBeanDao.Properties.BookSourceUrl.eq(tag)).unique();
+    public static String formatAuthor(String author) {
+        if (author == null) {
+            return "";
+        }
+        return author.replaceAll("作\\s*者[\\s:：]*", "").replaceAll("\\s+", " ").trim();
     }
 
     public static int guessChapterNum(String name) {
