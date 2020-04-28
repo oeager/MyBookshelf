@@ -6,11 +6,12 @@ import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.widget.TextView;
 
 import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.widget.SearchView;
 import androidx.appcompat.widget.Toolbar;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.appbar.AppBarLayout;
 import com.hwangjr.rxbus.RxBus;
@@ -25,7 +26,8 @@ import com.kunfei.bookshelf.model.content.Debug;
 import com.kunfei.bookshelf.utils.SoftInputUtil;
 import com.kunfei.bookshelf.utils.StringUtils;
 import com.kunfei.bookshelf.utils.theme.ThemeStore;
-import com.victor.loading.rotate.RotateLoading;
+import com.kunfei.bookshelf.view.adapter.SourceDebugAdapter;
+import com.kunfei.bookshelf.widget.RotateLoading;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
@@ -42,9 +44,10 @@ public class SourceDebugActivity extends MBaseActivity {
     RotateLoading loading;
     @BindView(R.id.action_bar)
     AppBarLayout actionBar;
-    @BindView(R.id.tv_content)
-    TextView tvContent;
+    @BindView(R.id.lv_log)
+    RecyclerView recyclerView;
 
+    private SourceDebugAdapter adapter;
     private CompositeDisposable compositeDisposable;
     private String sourceTag;
 
@@ -104,6 +107,9 @@ public class SourceDebugActivity extends MBaseActivity {
         this.setSupportActionBar(toolbar);
         setupActionBar();
         initSearchView();
+        adapter = new SourceDebugAdapter(this);
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        recyclerView.setAdapter(adapter);
     }
 
     private void initSearchView() {
@@ -128,29 +134,17 @@ public class SourceDebugActivity extends MBaseActivity {
     }
 
     private void startDebug(String key) {
+        if (TextUtils.isEmpty(sourceTag) || TextUtils.isEmpty(key)) {
+            toast(R.string.cannot_empty);
+            return;
+        }
         if (compositeDisposable != null) {
             compositeDisposable.dispose();
         }
         compositeDisposable = new CompositeDisposable();
         loading.start();
-        tvContent.setText("");
-        Debug.newDebug(sourceTag, key, compositeDisposable, new Debug.CallBack() {
-            @Override
-            public void printLog(String msg) {
-                printDebugLog(msg);
-            }
-
-            @Override
-            public void printError(String msg) {
-                loading.stop();
-                printDebugLog(msg);
-            }
-
-            @Override
-            public void finish() {
-                loading.stop();
-            }
-        });
+        adapter.clearData();
+        Debug.newDebug(sourceTag, key, compositeDisposable);
     }
 
     //设置ToolBar
@@ -203,10 +197,9 @@ public class SourceDebugActivity extends MBaseActivity {
 
     @Subscribe(thread = EventThread.MAIN_THREAD, tags = {@Tag(RxBusTag.PRINT_DEBUG_LOG)})
     public void printDebugLog(String msg) {
-        if (TextUtils.isEmpty(tvContent.getText().toString())) {
-            tvContent.setText(msg);
-        } else {
-            tvContent.setText(String.format("%s\n%s", tvContent.getText(), msg));
+        adapter.addData(msg);
+        if (msg.equals("finish")) {
+            loading.stop();
         }
     }
 

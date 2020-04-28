@@ -12,16 +12,14 @@ import com.hwangjr.rxbus.thread.EventThread;
 import com.kunfei.basemvplib.BasePresenterImpl;
 import com.kunfei.basemvplib.impl.IView;
 import com.kunfei.bookshelf.DbHelper;
-import com.kunfei.bookshelf.R;
 import com.kunfei.bookshelf.base.observer.MyObserver;
+import com.kunfei.bookshelf.bean.BookChapterBean;
 import com.kunfei.bookshelf.bean.BookInfoBean;
 import com.kunfei.bookshelf.bean.BookShelfBean;
 import com.kunfei.bookshelf.bean.BookSourceBean;
 import com.kunfei.bookshelf.constant.RxBusTag;
 import com.kunfei.bookshelf.dao.BookSourceBeanDao;
 import com.kunfei.bookshelf.help.BookshelfHelp;
-import com.kunfei.bookshelf.help.DataBackup;
-import com.kunfei.bookshelf.help.DataRestore;
 import com.kunfei.bookshelf.model.WebBookModel;
 import com.kunfei.bookshelf.presenter.contract.MainContract;
 import com.kunfei.bookshelf.utils.RxUtils;
@@ -30,54 +28,17 @@ import com.kunfei.bookshelf.utils.StringUtils;
 import java.util.List;
 
 import io.reactivex.Observable;
-import io.reactivex.ObservableOnSubscribe;
 import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.schedulers.Schedulers;
 
 public class MainPresenter extends BasePresenterImpl<MainContract.View> implements MainContract.Presenter {
 
     @Override
-    public void backupData() {
-        DataBackup.getInstance().run();
-    }
-
-    @Override
-    public void restoreData() {
-        mView.onRestore(mView.getContext().getString(R.string.on_restore));
-        Observable.create((ObservableOnSubscribe<Boolean>) e -> {
-            if (DataRestore.getInstance().run()) {
-                e.onNext(true);
-            } else {
-                e.onNext(false);
-            }
-            e.onComplete();
-        })
-                .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(new MyObserver<Boolean>() {
-                    @Override
-                    public void onNext(Boolean value) {
-                        mView.dismissHUD();
-                        mView.toast(R.string.restore_success);
-                        //更新书架并刷新
-                        mView.recreate();
-                    }
-
-                    @Override
-                    public void onError(Throwable e) {
-                        e.printStackTrace();
-                        mView.dismissHUD();
-                        mView.toast(R.string.restore_fail);
-                    }
-                });
-    }
-
-    @Override
     public void addBookUrl(String bookUrls) {
-        bookUrls=bookUrls.trim();
+        bookUrls = bookUrls.trim();
         if (TextUtils.isEmpty(bookUrls)) return;
 
-        String[] urls=bookUrls.split("\\n");
+        String[] urls = bookUrls.split("\\n");
 
         Observable.fromArray(urls)
                 .flatMap(this::addBookUrlO)
@@ -136,32 +97,11 @@ public class MainPresenter extends BasePresenterImpl<MainContract.View> implemen
         });
     }
 
-    @Override
-    public void clearBookshelf() {
-        Observable.create((ObservableOnSubscribe<Boolean>) e -> {
-            BookshelfHelp.clearBookshelf();
-            e.onNext(true);
-            e.onComplete();
-        }).subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(new MyObserver<Boolean>() {
-                    @Override
-                    public void onNext(Boolean value) {
-                        RxBus.get().post(RxBusTag.REFRESH_BOOK_LIST, false);
-                    }
-
-                    @Override
-                    public void onError(Throwable e) {
-                        mView.toast(e.getMessage());
-                    }
-                });
-    }
-
     private void getBook(BookShelfBean bookShelfBean) {
         WebBookModel.getInstance()
                 .getBookInfo(bookShelfBean)
                 .flatMap(bookShelfBean1 -> WebBookModel.getInstance().getChapterList(bookShelfBean1))
-                .flatMap(this::saveBookToShelfO)
+                .flatMap(chapterBeanList -> saveBookToShelfO(bookShelfBean, chapterBeanList))
                 .subscribeOn(Schedulers.newThread())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(new MyObserver<BookShelfBean>() {
@@ -186,9 +126,10 @@ public class MainPresenter extends BasePresenterImpl<MainContract.View> implemen
     /**
      * 保存数据
      */
-    private Observable<BookShelfBean> saveBookToShelfO(BookShelfBean bookShelfBean) {
+    private Observable<BookShelfBean> saveBookToShelfO(BookShelfBean bookShelfBean, List<BookChapterBean> chapterBeanList) {
         return Observable.create(e -> {
             BookshelfHelp.saveBookToShelf(bookShelfBean);
+            DbHelper.getDaoSession().getBookChapterBeanDao().insertOrReplaceInTx(chapterBeanList);
             e.onNext(bookShelfBean);
             e.onComplete();
         });
@@ -217,8 +158,4 @@ public class MainPresenter extends BasePresenterImpl<MainContract.View> implemen
         mView.recreate();
     }
 
-    @Subscribe(thread = EventThread.MAIN_THREAD, tags = {@Tag(RxBusTag.AUTO_BACKUP)})
-    public void autoBackup(Boolean backup) {
-        DataBackup.getInstance().autoSave();
-    }
 }

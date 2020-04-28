@@ -13,7 +13,7 @@ import com.kunfei.bookshelf.dao.BookSourceBeanDao;
 import com.kunfei.bookshelf.model.analyzeRule.AnalyzeHeaders;
 import com.kunfei.bookshelf.model.impl.IHttpGetApi;
 import com.kunfei.bookshelf.utils.GsonUtils;
-import com.kunfei.bookshelf.utils.NetworkUtil;
+import com.kunfei.bookshelf.utils.NetworkUtils;
 import com.kunfei.bookshelf.utils.RxUtils;
 import com.kunfei.bookshelf.utils.StringUtils;
 
@@ -35,17 +35,17 @@ public class BookSourceManager {
 
     public static List<BookSourceBean> getSelectedBookSource() {
         return DbHelper.getDaoSession().getBookSourceBeanDao().queryBuilder()
-                    .where(BookSourceBeanDao.Properties.Enable.eq(true))
-                    .orderRaw(BookSourceBeanDao.Properties.Weight.columnName + " DESC")
-                    .orderAsc(BookSourceBeanDao.Properties.SerialNumber)
-                    .list();
+                .where(BookSourceBeanDao.Properties.Enable.eq(true))
+                .orderRaw(BookSourceBeanDao.Properties.Weight.columnName + " DESC")
+                .orderAsc(BookSourceBeanDao.Properties.SerialNumber)
+                .list();
     }
 
     public static List<BookSourceBean> getAllBookSource() {
         return DbHelper.getDaoSession().getBookSourceBeanDao().queryBuilder()
-                    .orderRaw(getBookSourceSort())
-                    .orderAsc(BookSourceBeanDao.Properties.SerialNumber)
-                    .list();
+                .orderRaw(getBookSourceSort())
+                .orderAsc(BookSourceBeanDao.Properties.SerialNumber)
+                .list();
     }
 
     public static List<BookSourceBean> getSelectedBookSourceBySerialNumber() {
@@ -58,6 +58,14 @@ public class BookSourceManager {
     public static List<BookSourceBean> getAllBookSourceBySerialNumber() {
         return DbHelper.getDaoSession().getBookSourceBeanDao().queryBuilder()
                 .orderAsc(BookSourceBeanDao.Properties.SerialNumber)
+                .list();
+    }
+
+    public static List<BookSourceBean> getEnableSourceByGroup(String group) {
+        return DbHelper.getDaoSession().getBookSourceBeanDao().queryBuilder()
+                .where(BookSourceBeanDao.Properties.Enable.eq(true))
+                .where(BookSourceBeanDao.Properties.BookSourceGroup.like("%" + group + "%"))
+                .orderRaw(BookSourceBeanDao.Properties.Weight.columnName + " DESC")
                 .list();
     }
 
@@ -99,9 +107,6 @@ public class BookSourceManager {
                 .where(BookSourceBeanDao.Properties.BookSourceUrl.eq(bookSourceBean.getBookSourceUrl())).unique();
         if (temp != null) {
             bookSourceBean.setSerialNumber(temp.getSerialNumber());
-            bookSourceBean.setEnable(temp.getEnable());
-        } else {
-            bookSourceBean.setEnable(true);
         }
         if (bookSourceBean.getSerialNumber() < 0) {
             bookSourceBean.setSerialNumber((int) (DbHelper.getDaoSession().getBookSourceBeanDao().queryBuilder().count() + 1));
@@ -128,6 +133,26 @@ public class BookSourceManager {
         }).compose(RxUtils::toSimpleSingle);
     }
 
+    public static List<String> getEnableGroupList() {
+        List<String> groupList = new ArrayList<>();
+        String sql = "SELECT DISTINCT "
+                + BookSourceBeanDao.Properties.BookSourceGroup.columnName
+                + " FROM " + BookSourceBeanDao.TABLENAME
+                + " WHERE " + BookSourceBeanDao.Properties.Enable.name + " = 1";
+        Cursor cursor = DbHelper.getDaoSession().getDatabase().rawQuery(sql, null);
+        if (!cursor.moveToFirst()) return groupList;
+        do {
+            String group = cursor.getString(0);
+            if (TextUtils.isEmpty(group) || TextUtils.isEmpty(group.trim())) continue;
+            for (String item : group.split("\\s*[,;，；]\\s*")) {
+                if (TextUtils.isEmpty(item) || groupList.contains(item)) continue;
+                groupList.add(item);
+            }
+        } while (cursor.moveToNext());
+        Collections.sort(groupList);
+        return groupList;
+    }
+
     public static List<String> getGroupList() {
         List<String> groupList = new ArrayList<>();
         String sql = "SELECT DISTINCT " + BookSourceBeanDao.Properties.BookSourceGroup.columnName + " FROM " + BookSourceBeanDao.TABLENAME;
@@ -148,17 +173,17 @@ public class BookSourceManager {
     public static Observable<List<BookSourceBean>> importSource(String string) {
         if (StringUtils.isTrimEmpty(string)) return null;
         string = string.trim();
-        if (NetworkUtil.isIPv4Address(string)) {
+        if (NetworkUtils.isIPv4Address(string)) {
             string = String.format("http://%s:65501", string);
         }
         if (StringUtils.isJsonType(string)) {
             return importBookSourceFromJson(string.trim())
                     .compose(RxUtils::toSimpleSingle);
         }
-        if (NetworkUtil.isUrl(string)) {
+        if (NetworkUtils.isUrl(string)) {
             return BaseModelImpl.getInstance().getRetrofitString(StringUtils.getBaseUrl(string), "utf-8")
                     .create(IHttpGetApi.class)
-                    .getWebContent(string, AnalyzeHeaders.getMap(null))
+                    .get(string, AnalyzeHeaders.getMap(null))
                     .flatMap(rsp -> importBookSourceFromJson(rsp.body()))
                     .compose(RxUtils::toSimpleSingle);
         }

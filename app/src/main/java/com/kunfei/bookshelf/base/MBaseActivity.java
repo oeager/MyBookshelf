@@ -24,6 +24,7 @@ import com.kunfei.bookshelf.MApplication;
 import com.kunfei.bookshelf.R;
 import com.kunfei.bookshelf.constant.RxBusTag;
 import com.kunfei.bookshelf.utils.ColorUtil;
+import com.kunfei.bookshelf.utils.SoftInputUtil;
 import com.kunfei.bookshelf.utils.bar.ImmersionBar;
 import com.kunfei.bookshelf.utils.theme.MaterialValueHelper;
 import com.kunfei.bookshelf.utils.theme.ThemeStore;
@@ -85,10 +86,12 @@ public abstract class MBaseActivity<T extends IPresenter> extends BaseActivity<T
      */
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
+        int primaryTextColor = MaterialValueHelper.getPrimaryTextColor(this, ColorUtil.isColorLight(ThemeStore.primaryColor(this)));
         for (int i = 0; i < menu.size(); i++) {
             Drawable drawable = menu.getItem(i).getIcon();
             if (drawable != null) {
-                drawable.setColorFilter(MaterialValueHelper.getPrimaryTextColor(this, ColorUtil.isColorLight(ThemeStore.primaryColor(this))), PorterDuff.Mode.SRC_ATOP);
+                drawable.mutate();
+                drawable.setColorFilter(primaryTextColor, PorterDuff.Mode.SRC_ATOP);
             }
         }
         return super.onCreateOptionsMenu(menu);
@@ -111,6 +114,7 @@ public abstract class MBaseActivity<T extends IPresenter> extends BaseActivity<T
                         for (MenuItem menuItem : menuItems) {
                             Drawable drawable = menuItem.getIcon();
                             if (drawable != null) {
+                                drawable.mutate();
                                 drawable.setColorFilter(getResources().getColor(R.color.tv_text_default), PorterDuff.Mode.SRC_ATOP);
                             }
                         }
@@ -178,6 +182,7 @@ public abstract class MBaseActivity<T extends IPresenter> extends BaseActivity<T
     /**
      * 设置屏幕方向
      */
+    @SuppressLint("SourceLockedOrientationActivity")
     public void setOrientation(int screenDirection) {
         switch (screenDirection) {
             case 0:
@@ -243,7 +248,7 @@ public abstract class MBaseActivity<T extends IPresenter> extends BaseActivity<T
     public void startActivity(Intent intent) {
         super.startActivity(intent);
         if (MApplication.isEInkMode) {
-            overridePendingTransition(R.anim.anim_none,R.anim.anim_none);
+            overridePendingTransition(R.anim.anim_none, R.anim.anim_none);
         }
     }
 
@@ -251,12 +256,13 @@ public abstract class MBaseActivity<T extends IPresenter> extends BaseActivity<T
     public void startActivityForResult(Intent intent, int requestCode, @Nullable Bundle options) {
         super.startActivityForResult(intent, requestCode, options);
         if (MApplication.isEInkMode) {
-            overridePendingTransition(R.anim.anim_none,R.anim.anim_none);
+            overridePendingTransition(R.anim.anim_none, R.anim.anim_none);
         }
     }
 
     @Override
     public void finish() {
+        SoftInputUtil.hideIMM(getCurrentFocus());
         super.finish();
         if (MApplication.isEInkMode) {
             overridePendingTransition(R.anim.anim_none, R.anim.anim_none);

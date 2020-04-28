@@ -3,6 +3,7 @@ package com.kunfei.bookshelf.presenter;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.text.TextUtils;
 
 import androidx.annotation.NonNull;
 
@@ -29,7 +30,7 @@ public class SourceEditPresenter extends BasePresenterImpl<SourceEditContract.Vi
     @Override
     public Observable<Boolean> saveSource(BookSourceBean bookSource, BookSourceBean bookSourceOld) {
         return Observable.create((ObservableOnSubscribe<Boolean>) e -> {
-            if (bookSourceOld != null && !Objects.equals(bookSource.getBookSourceUrl(), bookSourceOld.getBookSourceUrl())) {
+            if (!TextUtils.isEmpty(bookSourceOld.getBookSourceUrl()) && !Objects.equals(bookSource.getBookSourceUrl(), bookSourceOld.getBookSourceUrl())) {
                 DbHelper.getDaoSession().getBookSourceBeanDao().delete(bookSourceOld);
             }
             BookSourceManager.addBookSource(bookSource);
@@ -38,9 +39,9 @@ public class SourceEditPresenter extends BasePresenterImpl<SourceEditContract.Vi
     }
 
     @Override
-    public void copySource(BookSourceBean bookSourceBean) {
+    public void copySource(String bookSource) {
         ClipboardManager clipboard = (ClipboardManager) mView.getContext().getSystemService(Context.CLIPBOARD_SERVICE);
-        ClipData clipData = ClipData.newPlainText(null, mView.getBookSourceStr());
+        ClipData clipData = ClipData.newPlainText(null, bookSource);
         if (clipboard != null) {
             clipboard.setPrimaryClip(clipData);
         }

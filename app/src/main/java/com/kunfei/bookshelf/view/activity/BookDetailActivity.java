@@ -3,12 +3,14 @@ package com.kunfei.bookshelf.view.activity;
 
 import android.annotation.SuppressLint;
 import android.content.Intent;
+import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.text.method.ScrollingMovementMethod;
 import android.view.Gravity;
 import android.view.KeyEvent;
+import android.view.Menu;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.PopupMenu;
@@ -16,14 +18,16 @@ import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.TextView;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.widget.AppCompatImageView;
 
-import com.bumptech.glide.Glide;
-import com.bumptech.glide.load.engine.DiskCacheStrategy;
+import com.bumptech.glide.RequestBuilder;
+import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions;
 import com.bumptech.glide.request.RequestOptions;
 import com.hwangjr.rxbus.RxBus;
 import com.kunfei.basemvplib.AppActivityManager;
 import com.kunfei.basemvplib.BitIntentDataManager;
+import com.kunfei.bookshelf.DbHelper;
 import com.kunfei.bookshelf.R;
 import com.kunfei.bookshelf.base.MBaseActivity;
 import com.kunfei.bookshelf.bean.BookInfoBean;
@@ -32,15 +36,16 @@ import com.kunfei.bookshelf.bean.BookSourceBean;
 import com.kunfei.bookshelf.bean.SearchBookBean;
 import com.kunfei.bookshelf.constant.RxBusTag;
 import com.kunfei.bookshelf.help.BlurTransformation;
+import com.kunfei.bookshelf.help.BookshelfHelp;
+import com.kunfei.bookshelf.help.ImageLoader;
 import com.kunfei.bookshelf.model.BookSourceManager;
 import com.kunfei.bookshelf.presenter.BookDetailPresenter;
 import com.kunfei.bookshelf.presenter.ReadBookPresenter;
 import com.kunfei.bookshelf.presenter.contract.BookDetailContract;
-import com.kunfei.bookshelf.widget.CoverImageView;
+import com.kunfei.bookshelf.utils.StringUtils;
+import com.kunfei.bookshelf.widget.image.CoverImageView;
+import com.kunfei.bookshelf.widget.modialog.ChangeSourceDialog;
 import com.kunfei.bookshelf.widget.modialog.MoDialogHUD;
-
-import java.io.File;
-import java.util.Objects;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
@@ -107,6 +112,14 @@ public class BookDetailActivity extends MBaseActivity<BookDetailContract.Present
         mPresenter.initData(getIntent());
     }
 
+    @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        String dataKey = String.valueOf(System.currentTimeMillis());
+        getIntent().putExtra("openFrom", FROM_BOOKSHELF);
+        getIntent().putExtra("data_key", dataKey);
+        BitIntentDataManager.getInstance().putData(dataKey, mPresenter.getBookShelf());
+    }
 
     @Override
     protected void bindView() {
@@ -119,14 +132,14 @@ public class BookDetailActivity extends MBaseActivity<BookDetailContract.Present
         } else {
             if (mPresenter.getSearchBook() == null) return;
             SearchBookBean searchBookBean = mPresenter.getSearchBook();
-            upImageView(searchBookBean.getCoverUrl());
+            upImageView(searchBookBean.getCoverUrl(), searchBookBean.getName(), searchBookBean.getAuthor());
             tvName.setText(searchBookBean.getName());
             author = searchBookBean.getAuthor();
             tvAuthor.setText(TextUtils.isEmpty(author) ? "未知" : author);
             String origin = TextUtils.isEmpty(searchBookBean.getOrigin()) ? "未知" : searchBookBean.getOrigin();
             tvOrigin.setText(origin);
             tvChapter.setText(searchBookBean.getLastChapter());  // newest
-            tvIntro.setText(searchBookBean.getIntroduce());
+            tvIntro.setText(StringUtils.formatHtml(searchBookBean.getIntroduce()));
             tvShelf.setText(R.string.add_to_shelf);
             tvRead.setText(R.string.start_read);
             tvRead.setOnClickListener(v -> {
@@ -144,6 +157,11 @@ public class BookDetailActivity extends MBaseActivity<BookDetailContract.Present
         bookShelfBean = mPresenter.getBookShelf();
         BookInfoBean bookInfoBean;
         if (null != bookShelfBean) {
+            if (BookShelfBean.LOCAL_TAG.equals(bookShelfBean.getTag())) {
+                ivMenu.setVisibility(View.GONE);
+            } else {
+                ivMenu.setVisibility(View.VISIBLE);
+            }
             bookInfoBean = bookShelfBean.getBookInfoBean();
             tvName.setText(bookInfoBean.getName());
             author = bookInfoBean.getAuthor();
@@ -168,9 +186,7 @@ public class BookDetailActivity extends MBaseActivity<BookDetailContract.Present
                     mPresenter.addToBookShelf();
                 });
             }
-            if (bookInfoBean.getIntroduce() != null) {
-                tvIntro.setText(bookInfoBean.getIntroduce());
-            }
+            tvIntro.setText(StringUtils.formatHtml(bookInfoBean.getIntroduce()));
             if (tvIntro.getVisibility() != View.VISIBLE) {
                 tvIntro.setVisibility(View.VISIBLE);
             }
@@ -183,9 +199,14 @@ public class BookDetailActivity extends MBaseActivity<BookDetailContract.Present
                 tvOrigin.setVisibility(View.INVISIBLE);
             }
             if (!TextUtils.isEmpty(bookShelfBean.getCustomCoverPath())) {
-                upImageView(bookShelfBean.getCustomCoverPath());
+                upImageView(bookShelfBean.getCustomCoverPath(), bookInfoBean.getName(), bookInfoBean.getAuthor());
             } else {
-                upImageView(bookInfoBean.getCoverUrl());
+                upImageView(bookInfoBean.getCoverUrl(), bookInfoBean.getName(), bookInfoBean.getAuthor());
+            }
+            if (bookShelfBean.getTag().equals(BookShelfBean.LOCAL_TAG)) {
+                tvChangeOrigin.setVisibility(View.INVISIBLE);
+            } else {
+                tvChangeOrigin.setVisibility(View.VISIBLE);
             }
             upChapterSizeTv();
         }
@@ -204,84 +225,74 @@ public class BookDetailActivity extends MBaseActivity<BookDetailContract.Present
         });
     }
 
-    private void upImageView(String path) {
-        if (TextUtils.isEmpty(path)) return;
-        if (Objects.equals(coverPath, path)) return;
-        if (this.isFinishing()) return;
-        coverPath = path;
-        if (coverPath.startsWith("http")) {
-            Glide.with(this).load(coverPath)
-                    .apply(new RequestOptions().dontAnimate().diskCacheStrategy(DiskCacheStrategy.RESOURCE).centerCrop()
-                            .placeholder(R.drawable.img_cover_default))
-                    .into(ivCover);
-            Glide.with(this).load(coverPath)
-                    .apply(new RequestOptions().dontAnimate().diskCacheStrategy(DiskCacheStrategy.RESOURCE).centerCrop()
-                            .placeholder(R.drawable.img_cover_gs))
-                    .apply(RequestOptions.bitmapTransform(new BlurTransformation(this, 25)))
-                    .into(ivBlurCover);
-        } else {
-            File file = new File(coverPath);
-            Glide.with(this).load(file)
-                    .apply(new RequestOptions().dontAnimate().diskCacheStrategy(DiskCacheStrategy.RESOURCE).centerCrop()
-                            .placeholder(R.drawable.img_cover_default))
-                    .into(ivCover);
-            Glide.with(this).load(file)
-                    .apply(new RequestOptions().dontAnimate().diskCacheStrategy(DiskCacheStrategy.RESOURCE).centerCrop()
-                            .placeholder(R.drawable.img_cover_gs))
-                    .apply(RequestOptions.bitmapTransform(new BlurTransformation(this, 25)))
-                    .into(ivBlurCover);
-        }
+    private void upImageView(String path, String name, String author) {
+        ivCover.load(path, name, author);
+        ImageLoader.INSTANCE.load(this, path)
+                .transition(DrawableTransitionOptions.withCrossFade(1500))
+                .thumbnail(defaultCover())
+                .centerCrop()
+                .apply(RequestOptions.bitmapTransform(new BlurTransformation(this, 25)))
+                .into(ivBlurCover);  //模糊、渐变、缩小效果
+    }
+
+    private RequestBuilder<Drawable> defaultCover() {
+        return ImageLoader.INSTANCE.load(this, R.drawable.image_cover_default)
+                .apply(RequestOptions.bitmapTransform(new BlurTransformation(this, 25)));
     }
 
     private void refresh() {
         tvLoading.setVisibility(View.VISIBLE);
         tvLoading.setText(R.string.loading);
         tvLoading.setOnClickListener(null);
+        mPresenter.getBookShelf().getBookInfoBean().setBookInfoHtml(null);
+        mPresenter.getBookShelf().getBookInfoBean().setChapterListHtml(null);
         mPresenter.getBookShelfInfo();
     }
 
     @SuppressLint("ClickableViewAccessibility")
     @Override
     protected void bindEvent() {
-        ivBlurCover.setOnClickListener(null);
-        vwContent.setOnClickListener(v -> {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                if (getStart_share_ele()) {
-                    finishAfterTransition();
-                } else {
-                    finish();
-                    overridePendingTransition(0, android.R.anim.fade_out);
-                }
+        tvName.setOnClickListener(v -> {
+            if (bookShelfBean == null) return;
+            if (TextUtils.isEmpty(bookShelfBean.getBookInfoBean().getName())) return;
+            if (!AppActivityManager.getInstance().isExist(SearchBookActivity.class)) {
+                SearchBookActivity.startByKey(this, bookShelfBean.getBookInfoBean().getName());
             } else {
-                finish();
-                overridePendingTransition(0, android.R.anim.fade_out);
+                RxBus.get().post(RxBusTag.SEARCH_BOOK, bookShelfBean.getBookInfoBean().getName());
             }
+            finish();
         });
+        ivBlurCover.setOnClickListener(null);
+        vwContent.setOnClickListener(v -> finish());
 
-        tvChangeOrigin.setOnClickListener(view -> moDialogHUD.showChangeSource(mPresenter.getBookShelf(),
-                searchBookBean -> {
-                    tvOrigin.setText(searchBookBean.getOrigin());
-                    tvLoading.setVisibility(View.VISIBLE);
-                    tvLoading.setText(R.string.loading);
-                    tvLoading.setOnClickListener(null);
-                    if (mPresenter.getOpenFrom() == FROM_BOOKSHELF) {
-                        mPresenter.changeBookSource(searchBookBean);
-                    } else {
-                        mPresenter.initBookFormSearch(searchBookBean);
-                        mPresenter.getBookShelfInfo();
-                    }
-                }));
+        tvChangeOrigin.setOnClickListener(view ->
+                ChangeSourceDialog.builder(BookDetailActivity.this, mPresenter.getBookShelf())
+                        .setCallback(searchBookBean -> {
+                            tvOrigin.setText(searchBookBean.getOrigin());
+                            tvLoading.setVisibility(View.VISIBLE);
+                            tvLoading.setText(R.string.loading);
+                            tvLoading.setOnClickListener(null);
+                            if (mPresenter.getOpenFrom() == FROM_BOOKSHELF) {
+                                mPresenter.changeBookSource(searchBookBean);
+                            } else {
+                                mPresenter.initBookFormSearch(searchBookBean);
+                                mPresenter.getBookShelfInfo();
+                            }
+                        }).show());
 
         tvRead.setOnClickListener(v -> {
+            if (!mPresenter.getInBookShelf()) {
+                BookshelfHelp.saveBookToShelf(mPresenter.getBookShelf());
+                if (mPresenter.getChapterList() != null)
+                    DbHelper.getDaoSession().getBookChapterBeanDao().insertOrReplaceInTx(mPresenter.getChapterList());
+            }
             Intent intent = new Intent(BookDetailActivity.this, ReadBookActivity.class);
             intent.putExtra("openFrom", ReadBookPresenter.OPEN_FROM_APP);
+            intent.putExtra("inBookshelf", mPresenter.getInBookShelf());
             String key = String.valueOf(System.currentTimeMillis());
-            intent.putExtra("data_key", key);
-            try {
-                BitIntentDataManager.getInstance().putData(key, mPresenter.getBookShelf().clone());
-            } catch (CloneNotSupportedException e) {
-                BitIntentDataManager.getInstance().putData(key, mPresenter.getBookShelf());
-            }
+            String bookKey = "book" + key;
+            intent.putExtra("bookKey", bookKey);
+            BitIntentDataManager.getInstance().putData(bookKey, mPresenter.getBookShelf().clone());
             startActivityByAnim(intent, android.R.anim.fade_in, android.R.anim.fade_out);
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -299,31 +310,38 @@ public class BookDetailActivity extends MBaseActivity<BookDetailContract.Present
 
         ivMenu.setOnClickListener(view -> {
             PopupMenu popupMenu = new PopupMenu(this, view, Gravity.END);
-            popupMenu.getMenu().add(R.string.refresh);
+            if (!mPresenter.getBookShelf().getTag().equals(BookShelfBean.LOCAL_TAG)) {
+                popupMenu.getMenu().add(Menu.NONE, R.id.menu_refresh, Menu.NONE, R.string.refresh);
+            }
             if (mPresenter.getInBookShelf() && !mPresenter.getBookShelf().getTag().equals(BookShelfBean.LOCAL_TAG)) {
                 if (mPresenter.getBookShelf().getAllowUpdate()) {
-                    popupMenu.getMenu().add(R.string.disable_update);
+                    popupMenu.getMenu().add(Menu.NONE, R.id.menu_disable_update, Menu.NONE, R.string.disable_update);
                 } else {
-                    popupMenu.getMenu().add(R.string.allow_update);
+                    popupMenu.getMenu().add(Menu.NONE, R.id.menu_allow_update, Menu.NONE, R.string.allow_update);
                 }
             }
             if (!mPresenter.getBookShelf().getTag().equals(BookShelfBean.LOCAL_TAG)) {
-                popupMenu.getMenu().add(R.string.edit_book_source);
+                popupMenu.getMenu().add(Menu.NONE, R.id.menu_edit, Menu.NONE, R.string.edit_book_source);
             }
             popupMenu.setOnMenuItemClickListener(menuItem -> {
-                if (menuItem.getTitle().toString().equals(getString(R.string.refresh))) {
-                    refresh();
-                } else if (menuItem.getTitle().toString().equals(getString(R.string.allow_update))) {
-                    mPresenter.getBookShelf().setAllowUpdate(true);
-                    mPresenter.addToBookShelf();
-                } else if (menuItem.getTitle().toString().equals(getString(R.string.disable_update))) {
-                    mPresenter.getBookShelf().setAllowUpdate(false);
-                    mPresenter.addToBookShelf();
-                } else if (menuItem.getTitle().toString().equals(getString(R.string.edit_book_source))) {
-                    BookSourceBean sourceBean = BookSourceManager.getBookSourceByUrl(mPresenter.getBookShelf().getTag());
-                    if (sourceBean != null) {
-                        SourceEditActivity.startThis(this, sourceBean);
-                    }
+                switch (menuItem.getItemId()) {
+                    case R.id.menu_refresh:
+                        refresh();
+                        break;
+                    case R.id.menu_allow_update:
+                        mPresenter.getBookShelf().setAllowUpdate(true);
+                        mPresenter.addToBookShelf();
+                        break;
+                    case R.id.menu_disable_update:
+                        mPresenter.getBookShelf().setAllowUpdate(false);
+                        mPresenter.addToBookShelf();
+                        break;
+                    case R.id.menu_edit:
+                        BookSourceBean sourceBean = BookSourceManager.getBookSourceByUrl(mPresenter.getBookShelf().getTag());
+                        if (sourceBean != null) {
+                            SourceEditActivity.startThis(this, sourceBean);
+                        }
+                        break;
                 }
                 return true;
             });
@@ -384,6 +402,12 @@ public class BookDetailActivity extends MBaseActivity<BookDetailContract.Present
         Boolean mo = moDialogHUD.onKeyDown(keyCode, event);
         if (mo) return true;
         return super.onKeyDown(keyCode, event);
+    }
+
+    @Override
+    public void finish() {
+        super.finish();
+        overridePendingTransition(0, android.R.anim.fade_out);
     }
 
     @Override

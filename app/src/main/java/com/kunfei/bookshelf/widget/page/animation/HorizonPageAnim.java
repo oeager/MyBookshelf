@@ -6,35 +6,24 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 /**
  * 横向动画的模板
  */
 
 public abstract class HorizonPageAnim extends PageAnimation {
     private static final String TAG = "HorizonPageAnim";
-    Bitmap mPreBitmap;
-    Bitmap mCurBitmap;
-    Bitmap mNextBitmap;
-    //是否取消翻页
-    boolean isCancel = false;
-    private boolean touchInit = false;
-    //可以使用 mLast代替
-    private int mMoveX = 0;
-    private int mMoveY = 0;
-    //是否移动了
-    private boolean isMove = false;
-    //是否翻阅下一页。true表示翻到下一页，false表示上一页。
-    private boolean isNext = false;
-
-    //是否没下一页或者上一页
-    private boolean noNext = false;
+    List<Bitmap> bitmapList = new ArrayList<>();
 
     HorizonPageAnim(int w, int h, View view, OnPageChangeListener listener) {
         super(w, h, view, listener);
         //创建图片
-        mPreBitmap = Bitmap.createBitmap(mViewWidth, mViewHeight, Bitmap.Config.ARGB_8888);
-        mCurBitmap = Bitmap.createBitmap(mViewWidth, mViewHeight, Bitmap.Config.ARGB_8888);
-        mNextBitmap = Bitmap.createBitmap(mViewWidth, mViewHeight, Bitmap.Config.ARGB_8888);
+        for (int i = 0; i < 3; i++) {
+            bitmapList.add(Bitmap.createBitmap(mViewWidth, mViewHeight, Bitmap.Config.ARGB_8888));
+        }
     }
 
     /**
@@ -45,20 +34,12 @@ public abstract class HorizonPageAnim extends PageAnimation {
         if (isCancel) return false;
         switch (mDirection) {
             case NEXT:
-                mPreBitmap.recycle();
-                mPreBitmap = null;
-                mPreBitmap = mCurBitmap.copy(Bitmap.Config.ARGB_8888, true);
-                mCurBitmap.recycle();
-                mCurBitmap = null;
-                mCurBitmap = mNextBitmap.copy(Bitmap.Config.ARGB_8888, true);
+                Collections.swap(bitmapList, 0, 1);
+                Collections.swap(bitmapList, 1, 2);
                 break;
             case PREV:
-                mNextBitmap.recycle();
-                mNextBitmap = null;
-                mNextBitmap = mCurBitmap.copy(Bitmap.Config.ARGB_8888, true);
-                mCurBitmap.recycle();
-                mCurBitmap = null;
-                mCurBitmap = mPreBitmap.copy(Bitmap.Config.ARGB_8888, true);
+                Collections.swap(bitmapList, 1, 2);
+                Collections.swap(bitmapList, 0, 1);
                 break;
             default:
                 return false;
@@ -68,30 +49,9 @@ public abstract class HorizonPageAnim extends PageAnimation {
 
     public abstract void drawMove(Canvas canvas);
 
-    private void initTouch(int x, int y) {
-        if (!touchInit) {
-            //移动的点击位置
-            mMoveX = 0;
-            mMoveY = 0;
-            //是否移动
-            isMove = false;
-            //是否存在下一章
-            noNext = false;
-            //是下一章还是前一章
-            isNext = false;
-            //是否正在执行动画
-            isRunning = false;
-            //取消
-            isCancel = false;
-            //设置起始位置的触摸点
-            setStartPoint(x, y);
-            touchInit = true;
-        }
-    }
-
     @Override
     public void onTouchEvent(MotionEvent event) {
-        if (isMoving) return;
+        abortAnim();
         final int slop = ViewConfiguration.get(mView.getContext()).getScaledTouchSlop();
         //获取点击位置
         int x = (int) event.getX();
@@ -101,10 +61,8 @@ public abstract class HorizonPageAnim extends PageAnimation {
 
         switch (event.getAction()) {
             case MotionEvent.ACTION_DOWN:
-                initTouch(x, y);
                 break;
             case MotionEvent.ACTION_MOVE:
-                initTouch(x, y);
                 //判断是否移动了
                 if (!isMove) {
                     isMove = Math.abs(mStartX - x) > slop || Math.abs(mStartY - y) > slop;
@@ -151,14 +109,8 @@ public abstract class HorizonPageAnim extends PageAnimation {
                 break;
             case MotionEvent.ACTION_CANCEL:
             case MotionEvent.ACTION_UP:
-                initTouch(x, y);
-                touchInit = false;
                 isRunning = false;
                 if (!isMove) {
-                    if (mCenterRect.contains(x, y)) {
-                        mListener.clickCenter();
-                        return;
-                    }
 
                     if (!readBookControl.getCanClickTurn()) {
                         return;
@@ -199,7 +151,7 @@ public abstract class HorizonPageAnim extends PageAnimation {
         if (isRunning && !noNext) {
             drawMove(canvas);
         } else {
-            canvas.drawBitmap(mCurBitmap, 0, 0, null);
+            canvas.drawBitmap(getBgBitmap(0), 0, 0, null);
             isCancel = true;
         }
     }
@@ -208,20 +160,24 @@ public abstract class HorizonPageAnim extends PageAnimation {
     public void abortAnim() {
         if (!mScroller.isFinished()) {
             mScroller.abortAnimation();
-            isRunning = false;
+            if (changePage()) {
+                mListener.changePage(mDirection);
+                setDirection(PageAnimation.Direction.NONE);
+            }
+            movingFinish();
             setTouchPoint(mScroller.getFinalX(), mScroller.getFinalY());
-            mView.postInvalidate();
+            mView.invalidate();
         }
     }
 
     @Override
     public Bitmap getBgBitmap(int pageOnCur) {
         if (pageOnCur < 0) {
-            return mPreBitmap;
+            return bitmapList.get(0);
         } else if (pageOnCur > 0) {
-            return mNextBitmap;
+            return bitmapList.get(2);
         }
-        return mCurBitmap;
+        return bitmapList.get(1);
     }
 
     public void setCancel(boolean cancel) {

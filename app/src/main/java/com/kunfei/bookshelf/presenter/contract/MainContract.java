@@ -30,13 +30,7 @@ public interface MainContract {
 
     interface Presenter extends IPresenter {
 
-        void backupData();
-
-        void restoreData();
-
         void addBookUrl(String bookUrl);
-
-        void clearBookshelf();
     }
 
 }

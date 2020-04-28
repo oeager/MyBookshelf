@@ -2,33 +2,29 @@
 package com.kunfei.bookshelf.view.adapter;
 
 import android.app.Activity;
-import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.FrameLayout;
 import android.widget.TextView;
 
-import com.bumptech.glide.Glide;
-import com.bumptech.glide.load.engine.DiskCacheStrategy;
-import com.bumptech.glide.request.RequestOptions;
+import androidx.recyclerview.widget.RecyclerView;
+
 import com.kunfei.bookshelf.R;
 import com.kunfei.bookshelf.bean.BookKindBean;
 import com.kunfei.bookshelf.bean.SearchBookBean;
 import com.kunfei.bookshelf.utils.StringUtils;
-import com.kunfei.bookshelf.widget.CoverImageView;
+import com.kunfei.bookshelf.widget.image.CoverImageView;
 import com.kunfei.bookshelf.widget.recycler.refresh.RefreshRecyclerViewAdapter;
 
-import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
 
-import androidx.recyclerview.widget.RecyclerView;
+import static com.kunfei.bookshelf.utils.StringUtils.isTrimEmpty;
 
 public class ChoiceBookAdapter extends RefreshRecyclerViewAdapter {
     private Activity activity;
-    private List<SearchBookBean> searchBooks;
-    private OnItemClickListener itemClickListener;
+    private ArrayList<SearchBookBean> searchBooks;
+    private Callback callback;
 
     public ChoiceBookAdapter(Activity activity) {
         super(true);
@@ -44,65 +40,60 @@ public class ChoiceBookAdapter extends RefreshRecyclerViewAdapter {
     @Override
     public void onBindIViewHolder(final RecyclerView.ViewHolder holder, final int position) {
         MyViewHolder myViewHolder = (MyViewHolder) holder;
+        if (position >= searchBooks.size()) return;
+        SearchBookBean book = searchBooks.get(position);
         if (!activity.isFinishing()) {
-            Glide.with(activity)
-                    .load(searchBooks.get(position).getCoverUrl())
-                    .apply(new RequestOptions()
-                            .dontAnimate()
-                            .diskCacheStrategy(DiskCacheStrategy.RESOURCE)
-                            .centerCrop()
-                            .placeholder(R.drawable.img_cover_default))
-                    .into(myViewHolder.ivCover);
+            myViewHolder.ivCover.load(book.getCoverUrl(), book.getName(), book.getCoverUrl());
         }
-        String title = searchBooks.get(position).getName();
-        String author = searchBooks.get(position).getAuthor();
+        String title = book.getName();
+        String author = book.getAuthor();
         if (author != null && author.trim().length() > 0)
             title = String.format("%s (%s)", title, author);
         myViewHolder.tvName.setText(title);
-        BookKindBean bookKindBean = new BookKindBean(searchBooks.get(position).getKind());
-        if (TextUtils.isEmpty(bookKindBean.getKind())) {
+        BookKindBean bookKindBean = new BookKindBean(book.getKind());
+        if (isTrimEmpty(bookKindBean.getKind())) {
             myViewHolder.tvKind.setVisibility(View.GONE);
         } else {
             myViewHolder.tvKind.setVisibility(View.VISIBLE);
             myViewHolder.tvKind.setText(bookKindBean.getKind());
         }
-        if (TextUtils.isEmpty(bookKindBean.getWordsS())) {
+        if (isTrimEmpty(bookKindBean.getWordsS())) {
             myViewHolder.tvWords.setVisibility(View.GONE);
         } else {
             myViewHolder.tvWords.setVisibility(View.VISIBLE);
             myViewHolder.tvWords.setText(bookKindBean.getWordsS());
         }
-        if (TextUtils.isEmpty(bookKindBean.getState())) {
+        if (isTrimEmpty(bookKindBean.getState())) {
             myViewHolder.tvState.setVisibility(View.GONE);
         } else {
             myViewHolder.tvState.setVisibility(View.VISIBLE);
             myViewHolder.tvState.setText(bookKindBean.getState());
         }
-
-        if (searchBooks.get(position).getLastChapter() != null && searchBooks.get(position).getLastChapter().length() > 0)
-            myViewHolder.tvLasted.setText(searchBooks.get(position).getLastChapter());
-        else if (searchBooks.get(position).getDesc() != null && searchBooks.get(position).getDesc().length() > 0) {
-            myViewHolder.tvLasted.setText(searchBooks.get(position).getDesc());
-        } else
-            myViewHolder.tvLasted.setText("");
-        if (searchBooks.get(position).getOrigin() != null && searchBooks.get(position).getOrigin().length() > 0) {
+        //来源
+        if (isTrimEmpty(book.getOrigin())) {
+            myViewHolder.tvOrigin.setVisibility(View.GONE);
+        } else {
             myViewHolder.tvOrigin.setVisibility(View.VISIBLE);
             myViewHolder.tvOrigin.setText(activity.getString(R.string.origin_format, searchBooks.get(position).getOrigin()));
+        }
+        //最新章节
+        if (isTrimEmpty(book.getLastChapter())) {
+            myViewHolder.tvLasted.setVisibility(View.GONE);
         } else {
-            myViewHolder.tvOrigin.setVisibility(View.GONE);
+            myViewHolder.tvLasted.setText(book.getLastChapter());
+            myViewHolder.tvLasted.setVisibility(View.VISIBLE);
+        }
+        //简介
+        if (isTrimEmpty(book.getIntroduce())) {
+            myViewHolder.tvIntroduce.setVisibility(View.GONE);
+        } else {
+            myViewHolder.tvIntroduce.setText(StringUtils.formatHtml(searchBooks.get(position).getIntroduce()));
+            myViewHolder.tvIntroduce.setVisibility(View.VISIBLE);
         }
 
-        myViewHolder.tvAddShelf.setText("搜索");
-        myViewHolder.tvAddShelf.setVisibility(View.VISIBLE);
-        myViewHolder.tvAddShelf.setEnabled(true);
-
         myViewHolder.flContent.setOnClickListener(v -> {
-            if (itemClickListener != null)
-                itemClickListener.clickItem(myViewHolder.ivCover, position, searchBooks.get(position));
-        });
-        myViewHolder.tvAddShelf.setOnClickListener(v -> {
-            if (itemClickListener != null)
-                itemClickListener.clickAddShelf(myViewHolder.tvAddShelf, position, searchBooks.get(position));
+            if (callback != null)
+                callback.clickItem(myViewHolder.ivCover, position, book);
         });
     }
 
@@ -116,8 +107,8 @@ public class ChoiceBookAdapter extends RefreshRecyclerViewAdapter {
         return searchBooks.size();
     }
 
-    public void setItemClickListener(OnItemClickListener itemClickListener) {
-        this.itemClickListener = itemClickListener;
+    public void setCallback(Callback callback) {
+        this.callback = callback;
     }
 
     public void addAll(List<SearchBookBean> newData) {
@@ -139,26 +130,20 @@ public class ChoiceBookAdapter extends RefreshRecyclerViewAdapter {
         notifyDataSetChanged();
     }
 
-    public List<SearchBookBean> getSearchBooks() {
-        return searchBooks;
-    }
-
-    public interface OnItemClickListener {
-        void clickAddShelf(View clickView, int position, SearchBookBean searchBookBean);
-
+    public interface Callback {
         void clickItem(View animView, int position, SearchBookBean searchBookBean);
     }
 
     class MyViewHolder extends RecyclerView.ViewHolder {
-        FrameLayout flContent;
+        ViewGroup flContent;
         CoverImageView ivCover;
         TextView tvName;
         TextView tvState;
         TextView tvWords;
         TextView tvKind;
         TextView tvLasted;
-        TextView tvAddShelf;
         TextView tvOrigin;
+        TextView tvIntroduce;
 
         MyViewHolder(View itemView) {
             super(itemView);
@@ -168,9 +153,9 @@ public class ChoiceBookAdapter extends RefreshRecyclerViewAdapter {
             tvState = itemView.findViewById(R.id.tv_state);
             tvWords = itemView.findViewById(R.id.tv_words);
             tvLasted = itemView.findViewById(R.id.tv_lasted);
-            tvAddShelf = itemView.findViewById(R.id.tv_add_shelf);
             tvKind = itemView.findViewById(R.id.tv_kind);
             tvOrigin = itemView.findViewById(R.id.tv_origin);
+            tvIntroduce = itemView.findViewById(R.id.tv_introduce);
         }
     }
 }

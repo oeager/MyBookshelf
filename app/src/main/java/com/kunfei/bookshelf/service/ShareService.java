@@ -19,7 +19,7 @@ import com.kunfei.basemvplib.BitIntentDataManager;
 import com.kunfei.bookshelf.MApplication;
 import com.kunfei.bookshelf.R;
 import com.kunfei.bookshelf.bean.BookSourceBean;
-import com.kunfei.bookshelf.utils.NetworkUtil;
+import com.kunfei.bookshelf.utils.NetworkUtils;
 import com.kunfei.bookshelf.web.ShareServer;
 
 import java.io.IOException;
@@ -70,15 +70,17 @@ public class ShareService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        String action = intent.getAction();
-        if (action != null) {
-            switch (action) {
-                case ActionStartService:
-                    upServer(intent);
-                    break;
-                case ActionDoneService:
-                    stopSelf();
-                    break;
+        if (intent != null) {
+            String action = intent.getAction();
+            if (action != null) {
+                switch (action) {
+                    case ActionStartService:
+                        upServer(intent);
+                        break;
+                    case ActionDoneService:
+                        stopSelf();
+                        break;
+                }
             }
         }
         return super.onStartCommand(intent, flags, startId);
@@ -94,7 +96,7 @@ public class ShareService extends Service {
             shareServer.stop();
         }
         shareServer = new ShareServer(65501, () -> bookSourceBeans);
-        InetAddress inetAddress = NetworkUtil.getLocalIPAddress();
+        InetAddress inetAddress = NetworkUtils.getLocalIPAddress();
         if (inetAddress != null) {
             try {
                 shareServer.start();

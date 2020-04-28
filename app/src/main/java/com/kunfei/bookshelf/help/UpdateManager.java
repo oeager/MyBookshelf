@@ -8,6 +8,8 @@ import android.os.Environment;
 import android.util.Log;
 import android.widget.Toast;
 
+import androidx.core.content.FileProvider;
+
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -19,11 +21,9 @@ import com.kunfei.bookshelf.base.observer.MyObserver;
 import com.kunfei.bookshelf.bean.UpdateInfoBean;
 import com.kunfei.bookshelf.model.analyzeRule.AnalyzeHeaders;
 import com.kunfei.bookshelf.model.impl.IHttpGetApi;
-import com.kunfei.bookshelf.view.activity.UpdateActivity;
 
 import java.io.File;
 
-import androidx.core.content.FileProvider;
 import io.reactivex.Observable;
 import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.schedulers.Schedulers;
@@ -44,7 +44,7 @@ public class UpdateManager {
     public void checkUpdate(boolean showMsg) {
         BaseModelImpl.getInstance().getRetrofitString("https://api.github.com")
                 .create(IHttpGetApi.class)
-                .getWebContent(MApplication.getInstance().getString(R.string.latest_release_api), AnalyzeHeaders.getMap(null))
+                .get(MApplication.getInstance().getString(R.string.latest_release_api), AnalyzeHeaders.getMap(null))
                 .flatMap(response -> analyzeLastReleaseApi(response.body()))
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
@@ -52,10 +52,10 @@ public class UpdateManager {
                     @Override
                     public void onNext(UpdateInfoBean updateInfo) {
                         if (updateInfo.getUpDate()) {
-                            UpdateActivity.startThis(activity, updateInfo);
+
                         } else if (showMsg) {
                             Toast.makeText(activity, "已是最新版本", Toast.LENGTH_SHORT).show();
-                            UpdateActivity.startThis(activity, updateInfo);
+
                         }
                     }
 
@@ -83,7 +83,7 @@ public class UpdateManager {
                     String thisVersion = MApplication.getVersionName().split("\\s")[0];
                     updateInfo.setUrl(url);
                     updateInfo.setLastVersion(lastVersion);
-                    updateInfo.setDetail("# "+lastVersion +"\n"+ detail);
+                    updateInfo.setDetail("# " + lastVersion + "\n" + detail);
                     if (Integer.valueOf(lastVersion.split("\\.")[2]) > Integer.valueOf(thisVersion.split("\\.")[2])) {
                         updateInfo.setUpDate(true);
                     } else {

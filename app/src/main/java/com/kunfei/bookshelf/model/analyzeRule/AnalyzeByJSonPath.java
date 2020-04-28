@@ -14,13 +14,12 @@ public class AnalyzeByJSonPath {
     private static final Pattern jsonRulePattern = Pattern.compile("(?<=\\{)\\$\\..+?(?=\\})");
     private ReadContext ctx;
 
-    public AnalyzeByJSonPath parse(String json) {
-        ctx = JsonPath.parse(json);
-        return this;
-    }
-
     public AnalyzeByJSonPath parse(Object json) {
-        ctx = JsonPath.parse(json);
+        if (json instanceof String) {
+            ctx = JsonPath.parse((String) json);
+        } else {
+            ctx = JsonPath.parse(json);
+        }
         return this;
     }
 
@@ -29,6 +28,16 @@ public class AnalyzeByJSonPath {
         String result = "";
         String[] rules;
         String elementsType;
+
+        if (rule.contains("{$.")) {
+            result = rule;
+            Matcher matcher = jsonRulePattern.matcher(rule);
+            while (matcher.find()) {
+                result = result.replace(String.format("{%s}", matcher.group()), getString(matcher.group().trim()));
+            }
+            return result;
+        }
+
         if (rule.contains("&&")) {
             rules = rule.split("&&");
             elementsType = "&";
@@ -36,42 +45,34 @@ public class AnalyzeByJSonPath {
             rules = rule.split("\\|\\|");
             elementsType = "|";
         }
+
         if (rules.length == 1) {
-            if (!rule.contains("{$.")) {
-                try {
-                    Object object = ctx.read(rule);
-                    if (object instanceof List) {
-                        StringBuilder builder = new StringBuilder();
-                        for (Object o : (List) object) {
-                            builder.append(o).append("\n");
-                        }
-                        result = builder.toString();
-                    } else {
-                        result = String.valueOf(object);
+            try {
+                Object object = ctx.read(rule);
+                if (object instanceof List) {
+                    StringBuilder builder = new StringBuilder();
+                    for (Object o : (List) object) {
+                        builder.append(o).append("\n");
                     }
-                } catch (Exception ignored) {
+                    result = builder.toString().replaceAll("\\n$", "");
+                } else {
+                    result = String.valueOf(object);
                 }
-                return result;
-            } else {
-                result = rule;
-                Matcher matcher = jsonRulePattern.matcher(rule);
-                while (matcher.find()) {
-                    result = result.replace(String.format("{%s}", matcher.group()), getString(matcher.group()));
-                }
-                return result;
+            } catch (Exception ignored) {
             }
+            return result;
         } else {
-            StringBuilder sb = new StringBuilder();
+            List<String> textS = new ArrayList<>();
             for (String rl : rules) {
                 String temp = getString(rl);
                 if (!TextUtils.isEmpty(temp)) {
-                    sb.append(temp);
+                    textS.add(temp);
                     if (elementsType.equals("|")) {
                         break;
                     }
                 }
             }
-            return sb.toString();
+            return TextUtils.join(",", textS).trim();
         }
     }
 
@@ -142,6 +143,10 @@ public class AnalyzeByJSonPath {
             }
             return result;
         }
+    }
+
+    Object getObject(String rule) {
+        return ctx.read(rule);
     }
 
     List<Object> getList(String rule) {

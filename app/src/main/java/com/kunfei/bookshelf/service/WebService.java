@@ -16,7 +16,7 @@ import androidx.core.app.NotificationCompat;
 
 import com.kunfei.bookshelf.MApplication;
 import com.kunfei.bookshelf.R;
-import com.kunfei.bookshelf.utils.NetworkUtil;
+import com.kunfei.bookshelf.utils.NetworkUtils;
 import com.kunfei.bookshelf.web.HttpServer;
 import com.kunfei.bookshelf.web.WebSocketServer;
 
@@ -27,51 +27,56 @@ import static com.kunfei.bookshelf.constant.AppConstant.ActionDoneService;
 import static com.kunfei.bookshelf.constant.AppConstant.ActionStartService;
 
 public class WebService extends Service {
-    private static boolean isRunning = false;
+    private static boolean sIsRunning = false;
     private HttpServer httpServer;
     private WebSocketServer webSocketServer;
 
-    public static void startThis(Activity activity) {
-        Intent intent = new Intent(activity, WebService.class);
-        intent.setAction(ActionStartService);
-        activity.startService(intent);
+    /**
+     * Start the web service, return true if the service can be started normally, false if it is started.
+     *
+     * @param context Indicates component context.
+     * @return true if the service can be started normally, false if it is started.
+     */
+    public static boolean startThis(Context context) {
+        if (sIsRunning) {
+            return false;
+        } else {
+            Intent intent = new Intent(context, WebService.class);
+            intent.setAction(ActionStartService);
+            context.startService(intent);
+            return true;
+        }
     }
 
     public static void upHttpServer(Activity activity) {
-        if (isRunning) {
+        if (sIsRunning) {
             Intent intent = new Intent(activity, WebService.class);
             intent.setAction(ActionStartService);
             activity.startService(intent);
         }
     }
 
-    public static void stopThis(Context context) {
-        if (isRunning) {
-            Intent intent = new Intent(context, WebService.class);
-            intent.setAction(ActionDoneService);
-            context.startService(intent);
-        }
-    }
-
     @Override
     public void onCreate() {
         super.onCreate();
-        updateNotification("正在启动服务");
+        updateNotification(getString(R.string.web_service_starting_hint_short));
         new Handler(Looper.getMainLooper())
-                .post(() -> Toast.makeText(this, "正在启动服务\n具体信息查看通知栏", Toast.LENGTH_SHORT).show());
+                .post(() -> Toast.makeText(this, R.string.web_service_starting_hint_long, Toast.LENGTH_SHORT).show());
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        String action = intent.getAction();
-        if (action != null) {
-            switch (action) {
-                case ActionStartService:
-                    upServer();
-                    break;
-                case ActionDoneService:
-                    stopSelf();
-                    break;
+        if (intent != null) {
+            String action = intent.getAction();
+            if (action != null) {
+                switch (action) {
+                    case ActionStartService:
+                        upServer();
+                        break;
+                    case ActionDoneService:
+                        stopSelf();
+                        break;
+                }
             }
         }
         return super.onStartCommand(intent, flags, startId);
@@ -87,12 +92,12 @@ public class WebService extends Service {
         int port = getPort();
         httpServer = new HttpServer(port);
         webSocketServer = new WebSocketServer(port + 1);
-        InetAddress inetAddress = NetworkUtil.getLocalIPAddress();
+        InetAddress inetAddress = NetworkUtils.getLocalIPAddress();
         if (inetAddress != null) {
             try {
                 httpServer.start();
-                webSocketServer.start(30000);
-                isRunning = true;
+                webSocketServer.start(1000 * 30); // 通信超时设置
+                sIsRunning = true;
                 updateNotification(getString(R.string.http_ip, inetAddress.getHostAddress(), port));
             } catch (IOException e) {
                 stopSelf();
@@ -105,7 +110,7 @@ public class WebService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        isRunning = false;
+        sIsRunning = false;
         if (httpServer != null && httpServer.isAlive()) {
             httpServer.stop();
         }
@@ -133,9 +138,9 @@ public class WebService extends Service {
      */
     private void updateNotification(String content) {
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, MApplication.channelIdWeb)
-                .setSmallIcon(R.drawable.ic_speaker_phone_black_24dp)
+                .setSmallIcon(R.drawable.ic_web_service_noti)
                 .setOngoing(true)
-                .setContentTitle(getString(R.string.web_edit_source))
+                .setContentTitle(getString(R.string.web_service))
                 .setContentText(content);
         builder.addAction(R.drawable.ic_stop_black_24dp, getString(R.string.cancel), getThisServicePendingIntent());
         builder.setVisibility(NotificationCompat.VISIBILITY_PUBLIC);

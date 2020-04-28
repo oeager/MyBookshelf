@@ -17,11 +17,13 @@ import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.widget.Toolbar;
 import androidx.cardview.widget.CardView;
 
+import com.google.zxing.EncodeHintType;
+import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
 import com.kunfei.basemvplib.impl.IPresenter;
 import com.kunfei.bookshelf.MApplication;
 import com.kunfei.bookshelf.R;
 import com.kunfei.bookshelf.base.MBaseActivity;
-import com.kunfei.bookshelf.help.UpdateManager;
+import com.kunfei.bookshelf.base.observer.MySingleObserver;
 import com.kunfei.bookshelf.utils.RxUtils;
 import com.kunfei.bookshelf.utils.theme.ThemeStore;
 import com.kunfei.bookshelf.widget.modialog.MoDialogHUD;
@@ -30,9 +32,7 @@ import butterknife.BindView;
 import butterknife.ButterKnife;
 import cn.bingoogolapple.qrcode.zxing.QRCodeEncoder;
 import io.reactivex.Single;
-import io.reactivex.SingleObserver;
 import io.reactivex.SingleOnSubscribe;
-import io.reactivex.disposables.Disposable;
 
 /**
  * Created by GKF on 2017/12/15.
@@ -140,7 +140,7 @@ public class AboutActivity extends MBaseActivity {
         vwMail.setOnClickListener(view -> openIntent(Intent.ACTION_SENDTO, "mailto:kunfei.ge@gmail.com"));
         vwGit.setOnClickListener(view -> openIntent(Intent.ACTION_VIEW, getString(R.string.this_github_url)));
         vwDisclaimer.setOnClickListener(view -> moDialogHUD.showAssetMarkdown("disclaimer.md"));
-        vwUpdate.setOnClickListener(view -> UpdateManager.getInstance(this).checkUpdate(true));
+        vwUpdate.setOnClickListener(view -> openIntent(Intent.ACTION_VIEW, getString(R.string.latest_release_url)));
         vwHomePage.setOnClickListener(view -> openIntent(Intent.ACTION_VIEW, getString(R.string.home_page_url)));
         vwQq.setOnClickListener(view -> {
             PopupMenu popupMenu = new PopupMenu(AboutActivity.this, view);
@@ -158,25 +158,16 @@ public class AboutActivity extends MBaseActivity {
         vwShare.setOnClickListener(view -> {
             String url = "https://www.coolapk.com/apk/com.gedoor.monkeybook";
             Single.create((SingleOnSubscribe<Bitmap>) emitter -> {
+                QRCodeEncoder.HINTS.put(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.H);
                 Bitmap bitmap = QRCodeEncoder.syncEncodeQRCode(url, 600);
                 emitter.onSuccess(bitmap);
             }).compose(RxUtils::toSimpleSingle)
-                    .subscribe(new SingleObserver<Bitmap>() {
-                        @Override
-                        public void onSubscribe(Disposable d) {
-
-                        }
-
+                    .subscribe(new MySingleObserver<Bitmap>() {
                         @Override
                         public void onSuccess(Bitmap bitmap) {
                             if (bitmap != null) {
                                 moDialogHUD.showImageText(bitmap, url);
                             }
-                        }
-
-                        @Override
-                        public void onError(Throwable e) {
-
                         }
                     });
         });

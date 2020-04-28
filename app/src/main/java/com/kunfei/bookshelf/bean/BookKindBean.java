@@ -12,7 +12,8 @@ public class BookKindBean {
     private String kind;
 
     public BookKindBean(String kindS) {
-        for (String kind : kindS.split(",")) {
+        if (TextUtils.isEmpty(kindS)) return;
+        for (String kind : kindS.split("[,|\n]")) {
             if (StringUtils.isContainNumber(kind) && TextUtils.isEmpty(wordsS)) {
                 if (StringUtils.isNumeric(kind)) {
                     int words = Integer.valueOf(kind);
@@ -26,12 +27,11 @@ public class BookKindBean {
                 } else {
                     wordsS = kind;
                 }
-            } else if (kind.matches(".*[连载|完结].*")){
+            } else if (kind.matches(".*[连载|完结].*")) {
                 state = kind;
-            }
-            else if (TextUtils.isEmpty(this.kind) && !TextUtils.isEmpty(kind)){
+            } else if (TextUtils.isEmpty(this.kind) && !TextUtils.isEmpty(kind)) {
                 this.kind = kind;
-            } else if (TextUtils.isEmpty(state) && !TextUtils.isEmpty(kind)){
+            } else if (TextUtils.isEmpty(state) && !TextUtils.isEmpty(kind)) {
                 state = kind;
             } else if (wordsS != null && state != null && this.kind != null) {
                 break;

@@ -9,7 +9,7 @@ import com.kunfei.bookshelf.dao.ReplaceRuleBeanDao;
 import com.kunfei.bookshelf.model.analyzeRule.AnalyzeHeaders;
 import com.kunfei.bookshelf.model.impl.IHttpGetApi;
 import com.kunfei.bookshelf.utils.GsonUtils;
-import com.kunfei.bookshelf.utils.NetworkUtil;
+import com.kunfei.bookshelf.utils.NetworkUtils;
 import com.kunfei.bookshelf.utils.RxUtils;
 import com.kunfei.bookshelf.utils.StringUtils;
 
@@ -91,10 +91,10 @@ public class ReplaceRuleManager {
             return importReplaceRuleO(text)
                     .compose(RxUtils::toSimpleSingle);
         }
-        if (NetworkUtil.isUrl(text)) {
+        if (NetworkUtils.isUrl(text)) {
             return BaseModelImpl.getInstance().getRetrofitString(StringUtils.getBaseUrl(text), "utf-8")
                     .create(IHttpGetApi.class)
-                    .getWebContent(text, AnalyzeHeaders.getMap(null))
+                    .get(text, AnalyzeHeaders.getMap(null))
                     .flatMap(rsp -> importReplaceRuleO(rsp.body()))
                     .compose(RxUtils::toSimpleSingle);
         }
